@@ -2,7 +2,7 @@ PLUGIN_DIR=plugin/carsystem-regional-sync
 PLUGIN_SLUG=carsystem-regional-sync
 DIST_DIR=dist
 
-.PHONY: init lint package clean
+.PHONY: init lint package clean deploy watch-log
 
 init:
 	@mkdir -p $(DIST_DIR)
@@ -18,3 +18,9 @@ package:
 
 clean:
 	@rm -rf $(DIST_DIR)
+
+deploy:
+	@bash scripts/deploy.sh
+
+watch-log:
+	@bash scripts/watch-debug-log.sh || true
