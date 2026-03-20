@@ -197,3 +197,6 @@
 Дополнение (ops):
 - ручной `Run sync now` выполняется через background queue (single cron event), чтобы не упираться в `504` на `admin-post.php`;
 - для media sync добавлен опциональный режим `Local media copy` (для source/region на одном аккаунте), с HTTP fallback.
+- в `system cron` режиме (`DISABLE_WP_CRON=true`) ручной запуск помечается как `scheduled` и выполняется на следующем scheduler tick (без агрессивного UI autopoll);
+- при неактивном lock ручная очередь очищается от зависших `crs_sync_manual_event`, чтобы не оставалось ложного состояния `already queued`.
+- host normalization для media lookup ограничена только `Local media copy` режимом; если опция выключена, обычный HTTP sync не модифицируется.

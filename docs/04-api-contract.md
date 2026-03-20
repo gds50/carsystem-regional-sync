@@ -128,6 +128,7 @@
 - run продолжает обработку остальных объектов и завершается `partial`, если есть такие ошибки.
 - object-level запись должна содержать минимум: `object_type`, `remote_id`, `remote_slug`, `message`.
 - допускается локальный copy-mode для сайтов на одном аккаунте/хостинге: сначала copy из source uploads по filesystem path, затем HTTP fallback.
+- any source-host normalization для media lookup допускается только в локальном copy-mode; в обычном режиме URL обрабатываются без принудительной замены host.
 
 ## 5. Сетевые правила
 

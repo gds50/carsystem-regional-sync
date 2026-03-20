@@ -120,6 +120,8 @@
 - блок расписания на вкладке `Sync` показывает `Auto sync`, `Sync time`, `Next scheduled run (UTC)`
 - health-блок на вкладке `Sync` показывает `Cron mode`, `Lock` (status/run type/age), `Manual queue`
 - `Run sync now` возвращает пользователя сразу (без долгого ожидания/504) и ставит full sync в background queue.
+- при `DISABLE_WP_CRON=true` ручной запуск показывает состояние `scheduled` и не зависает в автопроверке статуса.
+- если lock неактивен и в cron остались старые `crs_sync_manual_event`, они очищаются перед постановкой новой очереди.
 
 ## 10. PHP compatibility tests
 
@@ -135,6 +137,7 @@
 - при обновлении категории смена картинки на source обновляет локальную миниатюру;
 - при ошибке загрузки картинки run не падает целиком и фиксирует object-level ошибку.
 - при включенном `Local media copy` и доступном filesystem path файл берётся локально без HTTP-загрузки.
+- при выключенном `Local media copy` host normalization для media lookup не применяется (поведение HTTP-пути не меняется).
 
 ### Products
 - при создании нового товара переносится главное изображение;

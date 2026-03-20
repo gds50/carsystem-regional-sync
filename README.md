@@ -101,4 +101,7 @@ make package
   - локализация media URL в page content (`img/video/source`);
   - диагностика отсутствующего VideoPack с явной подсказкой в логах (`Install and activate ...`).
 - `Run sync now` выполняется через background queue (single cron event), чтобы уменьшить риск `504` на `admin-post.php`.
+- если включён `DISABLE_WP_CRON=true` (system cron mode), ручной запуск ставится в статус `scheduled` и стартует на следующем тике системного планировщика; автопуллинг UI для этого кейса отключён.
+- при отсутствии активного lock плагин очищает зависшие события `crs_sync_manual_event`, чтобы избежать ложного `Manual sync is already queued`.
 - для media sync добавлена опция `Local media copy` (same hosting/account) с fallback на HTTP.
+- нормализация source-host для media lookup применяется только при включённом `Local media copy`; при выключенной галке HTTP-путь работает как раньше.
