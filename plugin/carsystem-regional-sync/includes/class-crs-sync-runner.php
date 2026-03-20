@@ -72,13 +72,15 @@ final class Sync_Runner
     public function run_primary_regionalization(): void
     {
         $logId = $this->logger->start('primary_regionalization');
+        $summary = (new Primary_Regionalization_Runner($this->regionalizer))->run(Settings::get());
 
-        // TODO: implement real local products/categories traversal and allowed SEO field updates.
         $this->logger->finish($logId, [
-            'status'        => 'success',
-            'checked_count' => 0,
-            'updated_count' => 0,
-            'message'       => 'Primary regionalization skeleton executed. Implementation pending.',
+            'status'        => (string) ($summary['status'] ?? 'success'),
+            'checked_count' => (int) ($summary['checked_count'] ?? 0),
+            'updated_count' => (int) ($summary['updated_count'] ?? 0),
+            'skipped_count' => (int) ($summary['skipped_count'] ?? 0),
+            'error_count'   => (int) ($summary['error_count'] ?? 0),
+            'message'       => (string) ($summary['message'] ?? ''),
         ]);
     }
 
