@@ -154,6 +154,17 @@
 Результат:
 - MVP готов к staging.
 
+Статус:
+- ✅ Завершён (staging verification).
+
+Что подтверждено:
+- lock-механизм блокирует параллельный запуск и пишет `partial`-log с причиной пропуска;
+- обработка bad API settings даёт валидируемые ошибки (`source_url`, `api_username`, `api_application_password`);
+- object-level ошибки пишутся без sensitive данных (с маскированием потенциальных секретов);
+- путь `Sync_Runner::run_primary_regionalization()` переведён с TODO-скелета на реальный раннер;
+- выполнен lint на staging для затронутых файлов на `PHP 8.1` и `PHP 7.4`;
+- smoke-проверки через WP-CLI показали ожидаемые статусы `success/partial`.
+
 ## Post-MVP — Media sync (categories/products)
 
 Сделать:

@@ -71,7 +71,7 @@ make package
 - админский UI с рабочими экранами;
 - тесты и smoke-check на staging.
 
-## Актуальное состояние (main, HEAD 0247074)
+## Актуальное состояние (main, HEAD 2a2d3af)
 
 - ручной полный запуск синхронизации доступен на вкладке `Sync` кнопкой `Run sync now`;
 - первичная регионализация остаётся отдельным ручным действием;
@@ -88,3 +88,4 @@ make package
   - `API username`,
   - `Application password` (masked placeholder);
 - на вкладках `Region`, `Partner`, `Exclusions` есть рабочие формы сохранения настроек.
+- milestone `M12 (QA/hardening)` закрыт и зафиксирован в `docs/06-implementation-plan.md`.
