@@ -22,8 +22,11 @@ final class Plugin
 
     public function boot(): void
     {
+        add_action('init', [$this, 'maybe_ensure_cron_schedule']);
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_menu', [$this, 'register_admin']);
+        add_action(CRS_SYNC_CRON_HOOK, [$this, 'handle_cron_sync']);
+        add_action('update_option_' . CRS_SYNC_OPTION_KEY, [$this, 'handle_settings_updated'], 10, 2);
         add_action('admin_post_crs_test_connection', [$this, 'handle_test_connection']);
         add_action('admin_post_crs_run_primary_regionalization', [$this, 'handle_primary_regionalization']);
         add_action('admin_post_crs_run_sync_now', [$this, 'handle_run_sync_now']);
@@ -112,6 +115,29 @@ final class Plugin
 
         wp_safe_redirect(Admin_Page::page_url(['tab' => 'sync']));
         exit;
+    }
+
+    public function handle_cron_sync(): void
+    {
+        Sync_Runner::make()->run_sync('cron');
+    }
+
+    /**
+     * @param array|string $oldValue
+     * @param array|string $newValue
+     */
+    public function handle_settings_updated($oldValue, $newValue): void
+    {
+        $scheduler = new Cron_Scheduler();
+        $settings = Settings::get();
+        $scheduler->ensure_scheduled($settings);
+    }
+
+    public function maybe_ensure_cron_schedule(): void
+    {
+        $scheduler = new Cron_Scheduler();
+        $settings = Settings::get();
+        $scheduler->ensure_scheduled($settings);
     }
 
     private function perform_connection_test(array $settings): array

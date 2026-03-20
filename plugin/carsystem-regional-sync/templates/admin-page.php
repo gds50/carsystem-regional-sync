@@ -92,6 +92,11 @@ if (! isset($tabs[$activeTab])) {
             $latestPrimaryId = (int) ($latestPrimaryLog['id'] ?? 0);
             $latestSyncId = (int) ($latestFullSyncLog['id'] ?? 0);
             $lastActionLabel = '';
+            $syncSettings = \CRS\Settings::get();
+            $autoSyncEnabled = ! empty($syncSettings['auto_sync_enabled']);
+            $syncTime = (string) ($syncSettings['sync_time'] ?? '02:30');
+            $nextRunTimestamp = (new \CRS\Cron_Scheduler())->next_run_timestamp();
+            $nextRunUtc = $nextRunTimestamp !== null ? gmdate('Y-m-d H:i:s', $nextRunTimestamp) : '';
 
             if ($latestPrimaryId > 0 || $latestSyncId > 0) {
                 $lastActionLabel = $latestSyncId >= $latestPrimaryId
@@ -99,6 +104,19 @@ if (! isset($tabs[$activeTab])) {
                     : __('Primary regionalization', 'carsystem-regional-sync');
             }
             ?>
+
+            <div class="notice notice-info" style="margin: 0 0 16px 0;">
+                <p>
+                    <strong><?php echo esc_html__('Auto sync:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($autoSyncEnabled ? 'enabled' : 'disabled'); ?>
+                    |
+                    <strong><?php echo esc_html__('Sync time:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($syncTime); ?>
+                    |
+                    <strong><?php echo esc_html__('Next scheduled run (UTC):', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('not scheduled', 'carsystem-regional-sync')); ?>
+                </p>
+            </div>
 
             <p><?php echo esc_html__('Run full sync now (categories, products, pages).', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

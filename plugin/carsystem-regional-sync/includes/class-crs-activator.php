@@ -17,12 +17,13 @@ final class Activator
             add_option(CRS_SYNC_OPTION_KEY, Settings::defaults(), '', false);
         }
 
+        (new Cron_Scheduler())->ensure_scheduled(Settings::get());
         update_option('crs_sync_plugin_version', CRS_SYNC_VERSION, false);
     }
 
     public static function deactivate(): void
     {
-        // Keep deactivation side-effect free in Milestone 1.
+        (new Cron_Scheduler())->unschedule();
     }
 
     private static function create_tables(): void

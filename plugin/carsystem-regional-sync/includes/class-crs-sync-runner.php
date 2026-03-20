@@ -151,7 +151,15 @@ final class Sync_Runner
             'message'       => '',
         ];
 
-        $remoteCategories = $this->fetch_all_remote_categories();
+        try {
+            $remoteCategories = $this->fetch_all_remote_categories();
+        } catch (\Throwable $e) {
+            $summary['status'] = 'partial';
+            $summary['error_count'] = 1;
+            $summary['message'] = 'Categories fetch failed: ' . sanitize_text_field($e->getMessage());
+            return $summary;
+        }
+
         $seenRemoteIds = [];
         $pendingParentAssignments = [];
 
@@ -212,7 +220,15 @@ final class Sync_Runner
         ];
 
         $dictionary = Dictionary::parse((string) ($settings['replacement_dictionary'] ?? ''));
-        $remoteProducts = $this->fetch_all_remote_products();
+        try {
+            $remoteProducts = $this->fetch_all_remote_products();
+        } catch (\Throwable $e) {
+            $summary['status'] = 'partial';
+            $summary['error_count'] = 1;
+            $summary['message'] = 'Products fetch failed: ' . sanitize_text_field($e->getMessage());
+            return $summary;
+        }
+
         $seenRemoteIds = [];
 
         foreach ($remoteProducts as $remoteProduct) {
@@ -262,7 +278,15 @@ final class Sync_Runner
             'message'       => '',
         ];
 
-        $remotePages = $this->fetch_all_remote_pages();
+        try {
+            $remotePages = $this->fetch_all_remote_pages();
+        } catch (\Throwable $e) {
+            $summary['status'] = 'partial';
+            $summary['error_count'] = 1;
+            $summary['message'] = 'Pages fetch failed: ' . sanitize_text_field($e->getMessage());
+            return $summary;
+        }
+
         $seenRemoteIds = [];
 
         foreach ($remotePages as $remotePage) {

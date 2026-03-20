@@ -8,6 +8,9 @@ if (! defined('ABSPATH')) {
 
 final class Api_Client
 {
+    private const MAX_RETRY_ATTEMPTS = 3;
+    private const RETRY_BACKOFF_SECONDS = [1, 2, 4];
+
     /** @var array */
     private $settings;
 
@@ -25,7 +28,7 @@ final class Api_Client
     {
         return $this->get('/wp-json/wc/v3/products', [
             'page'     => $page,
-            'per_page' => $perPage,
+            'per_page' => $this->sanitize_per_page($perPage),
         ]);
     }
 
@@ -33,7 +36,7 @@ final class Api_Client
     {
         return $this->get('/wp-json/wc/v3/products/categories', [
             'page'     => $page,
-            'per_page' => $perPage,
+            'per_page' => $this->sanitize_per_page($perPage),
         ]);
     }
 
@@ -41,7 +44,7 @@ final class Api_Client
     {
         $query = [
             'page'     => $page,
-            'per_page' => $perPage,
+            'per_page' => $this->sanitize_per_page($perPage),
             'status'   => 'publish,draft,private,pending',
             'context'  => 'edit',
         ];
@@ -69,31 +72,64 @@ final class Api_Client
         $login = (string) ($this->settings['api_username'] ?? '');
         $password = (string) ($this->settings['api_application_password'] ?? '');
 
-        $response = wp_remote_get($url, [
-            'timeout' => 20,
-            'headers' => [
-                'Authorization' => 'Basic ' . base64_encode($login . ':' . $password),
-                'Accept'        => 'application/json',
-            ],
-            'user-agent' => 'CarsystemRegionalSync/' . CRS_SYNC_VERSION . '; ' . home_url('/'),
-        ]);
+        $lastErrorMessage = 'Remote API request failed.';
 
-        if (is_wp_error($response)) {
-            throw new \RuntimeException($response->get_error_message());
+        for ($attempt = 1; $attempt <= self::MAX_RETRY_ATTEMPTS; $attempt++) {
+            $response = wp_remote_get($url, [
+                'timeout' => 20,
+                'headers' => [
+                    'Authorization' => 'Basic ' . base64_encode($login . ':' . $password),
+                    'Accept'        => 'application/json',
+                ],
+                'user-agent' => 'CarsystemRegionalSync/' . CRS_SYNC_VERSION . '; ' . home_url('/'),
+            ]);
+
+            if (is_wp_error($response)) {
+                $lastErrorMessage = sanitize_text_field($response->get_error_message());
+
+                if ($attempt < self::MAX_RETRY_ATTEMPTS) {
+                    sleep((int) self::RETRY_BACKOFF_SECONDS[$attempt - 1]);
+                    continue;
+                }
+
+                throw new \RuntimeException($lastErrorMessage);
+            }
+
+            $code = (int) wp_remote_retrieve_response_code($response);
+            $body = (string) wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+
+            if ($code >= 200 && $code < 300) {
+                if (! is_array($data)) {
+                    throw new \RuntimeException('Remote API returned invalid JSON payload.');
+                }
+
+                return $data;
+            }
+
+            $lastErrorMessage = 'Remote API error: HTTP ' . $code;
+
+            if (($code === 429 || $code >= 500) && $attempt < self::MAX_RETRY_ATTEMPTS) {
+                sleep((int) self::RETRY_BACKOFF_SECONDS[$attempt - 1]);
+                continue;
+            }
+
+            throw new \RuntimeException($lastErrorMessage);
         }
 
-        $code = (int) wp_remote_retrieve_response_code($response);
-        $body = (string) wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
+        throw new \RuntimeException($lastErrorMessage);
+    }
 
-        if ($code < 200 || $code >= 300) {
-            throw new \RuntimeException('Remote API error: HTTP ' . $code);
+    private function sanitize_per_page(int $perPage): int
+    {
+        if ($perPage < 1) {
+            return 1;
         }
 
-        if (! is_array($data)) {
-            throw new \RuntimeException('Remote API returned invalid JSON payload.');
+        if ($perPage > 100) {
+            return 100;
         }
 
-        return $data;
+        return $perPage;
     }
 }
