@@ -85,6 +85,12 @@ final class Sync_Runner
     public function run_sync(string $runType): void
     {
         if (! $this->lock->acquire($runType)) {
+            $logId = $this->logger->start($runType);
+            $this->logger->finish($logId, [
+                'status'        => 'partial',
+                'skipped_count' => 1,
+                'message'       => 'Sync skipped: another sync run is active.',
+            ]);
             return;
         }
 
@@ -103,7 +109,7 @@ final class Sync_Runner
             $this->logger->finish($logId, [
                 'status'      => 'error',
                 'error_count' => 1,
-                'message'     => $e->getMessage(),
+                'message'     => $this->sanitize_error_message($e->getMessage()),
             ]);
         } finally {
             $this->lock->release();
@@ -187,7 +193,7 @@ final class Sync_Runner
                 $summary['skipped_count']++;
             } catch (\Throwable $e) {
                 $summary['error_count']++;
-                $this->mark_category_sync_error($remoteCategory, $e->getMessage());
+                $this->mark_category_sync_error($remoteCategory, $this->sanitize_error_message($e->getMessage()));
             }
         }
 
@@ -250,7 +256,7 @@ final class Sync_Runner
                 $summary['skipped_count']++;
             } catch (\Throwable $e) {
                 $summary['error_count']++;
-                $this->mark_product_sync_error($remoteProduct, $e->getMessage());
+                $this->mark_product_sync_error($remoteProduct, $this->sanitize_error_message($e->getMessage()));
             }
         }
 
@@ -308,7 +314,7 @@ final class Sync_Runner
                 $summary['skipped_count']++;
             } catch (\Throwable $e) {
                 $summary['error_count']++;
-                $this->mark_page_sync_error($remotePage, $e->getMessage());
+                $this->mark_page_sync_error($remotePage, $this->sanitize_error_message($e->getMessage()));
             }
         }
 
@@ -1925,7 +1931,7 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remoteCategory),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => sanitize_text_field($message),
+            'last_error_message'    => $this->sanitize_error_message($message),
         ]);
     }
 
@@ -1949,7 +1955,7 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remoteProduct),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => sanitize_text_field($message),
+            'last_error_message'    => $this->sanitize_error_message($message),
         ]);
     }
 
@@ -1973,7 +1979,21 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remotePage),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => sanitize_text_field($message),
+            'last_error_message'    => $this->sanitize_error_message($message),
         ]);
+    }
+
+    private function sanitize_error_message(string $message): string
+    {
+        $sanitized = preg_replace('/Authorization:\s*Basic\s+[A-Za-z0-9+\/=]+/i', 'Authorization: [REDACTED]', $message);
+        $sanitized = preg_replace('/(api_application_password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = preg_replace('/(password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = sanitize_text_field((string) $sanitized);
+
+        if ($sanitized === '') {
+            return 'Unknown sync error.';
+        }
+
+        return substr($sanitized, 0, 500);
     }
 }

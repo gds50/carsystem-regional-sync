@@ -51,7 +51,7 @@ final class Plugin
         $logId = $logger->start('connection_test');
 
         try {
-            $result = $this->perform_connection_test($settings);
+            $result = (new Api_Client($settings))->test_connection();
             $identity = (string) ($result['slug'] ?? $result['name'] ?? $result['id'] ?? 'unknown');
             $message = sprintf('Connection successful. Remote user: %s', sanitize_text_field($identity));
 
@@ -67,7 +67,7 @@ final class Plugin
                 'message'       => $message,
             ]);
         } catch (\Throwable $e) {
-            $errorMessage = sanitize_text_field($e->getMessage());
+            $errorMessage = $this->sanitize_error_message($e->getMessage());
 
             update_option(self::CONNECTION_TEST_OPTION_KEY, [
                 'status'    => 'error',
@@ -140,38 +140,17 @@ final class Plugin
         $scheduler->ensure_scheduled($settings);
     }
 
-    private function perform_connection_test(array $settings): array
+    private function sanitize_error_message(string $message): string
     {
-        $base = untrailingslashit((string) ($settings['source_url'] ?? ''));
-        $url = $base . '/wp-json/wp/v2/users/me';
-        $login = (string) ($settings['api_username'] ?? '');
-        $password = (string) ($settings['api_application_password'] ?? '');
+        $sanitized = preg_replace('/Authorization:\s*Basic\s+[A-Za-z0-9+\/=]+/i', 'Authorization: [REDACTED]', $message);
+        $sanitized = preg_replace('/(api_application_password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = preg_replace('/(password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = sanitize_text_field((string) $sanitized);
 
-        $response = wp_remote_get($url, [
-            'timeout' => 20,
-            'headers' => [
-                'Authorization' => 'Basic ' . base64_encode($login . ':' . $password),
-                'Accept'        => 'application/json',
-            ],
-            'user-agent' => 'CarsystemRegionalSync/' . CRS_SYNC_VERSION . '; ' . home_url('/'),
-        ]);
-
-        if (is_wp_error($response)) {
-            throw new \RuntimeException($response->get_error_message());
+        if ($sanitized === '') {
+            return 'Connection test failed.';
         }
 
-        $code = (int) wp_remote_retrieve_response_code($response);
-        $body = (string) wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-
-        if ($code < 200 || $code >= 300) {
-            throw new \RuntimeException('Remote API error: HTTP ' . $code);
-        }
-
-        if (! is_array($data)) {
-            throw new \RuntimeException('Remote API returned invalid JSON payload.');
-        }
-
-        return $data;
+        return substr($sanitized, 0, 500);
     }
 }

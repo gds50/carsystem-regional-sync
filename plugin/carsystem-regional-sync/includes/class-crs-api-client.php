@@ -67,6 +67,8 @@ final class Api_Client
 
     private function get(string $path, array $query = []): array
     {
+        $this->assert_connection_settings();
+
         $base = untrailingslashit((string) ($this->settings['source_url'] ?? ''));
         $url = add_query_arg($query, $base . $path);
         $login = (string) ($this->settings['api_username'] ?? '');
@@ -85,7 +87,7 @@ final class Api_Client
             ]);
 
             if (is_wp_error($response)) {
-                $lastErrorMessage = sanitize_text_field($response->get_error_message());
+                $lastErrorMessage = $this->sanitize_error_message((string) $response->get_error_message());
 
                 if ($attempt < self::MAX_RETRY_ATTEMPTS) {
                     sleep((int) self::RETRY_BACKOFF_SECONDS[$attempt - 1]);
@@ -118,6 +120,39 @@ final class Api_Client
         }
 
         throw new \RuntimeException($lastErrorMessage);
+    }
+
+    private function assert_connection_settings(): void
+    {
+        $sourceUrl = esc_url_raw((string) ($this->settings['source_url'] ?? ''));
+        $login = sanitize_user((string) ($this->settings['api_username'] ?? ''), true);
+        $password = trim((string) ($this->settings['api_application_password'] ?? ''));
+
+        if ($sourceUrl === '' || ! wp_http_validate_url($sourceUrl)) {
+            throw new \RuntimeException('Invalid source URL. Check Connection settings.');
+        }
+
+        if ($login === '') {
+            throw new \RuntimeException('API username is required. Check Connection settings.');
+        }
+
+        if ($password === '') {
+            throw new \RuntimeException('API application password is required. Check Connection settings.');
+        }
+    }
+
+    private function sanitize_error_message(string $message): string
+    {
+        $sanitized = preg_replace('/Authorization:\s*Basic\s+[A-Za-z0-9+\/=]+/i', 'Authorization: [REDACTED]', $message);
+        $sanitized = preg_replace('/(api_application_password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = preg_replace('/(password=)[^&\s]+/i', '$1[REDACTED]', (string) $sanitized);
+        $sanitized = sanitize_text_field((string) $sanitized);
+
+        if ($sanitized === '') {
+            return 'Remote API request failed.';
+        }
+
+        return substr($sanitized, 0, 500);
     }
 
     private function sanitize_per_page(int $perPage): int

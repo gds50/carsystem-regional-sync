@@ -45,6 +45,10 @@ if (! isset($tabs[$activeTab])) {
             $testMessage = (string) ($connectionTest['message'] ?? '');
             $testedAt = (string) ($connectionTest['tested_at'] ?? '');
             $noticeClass = $testStatus === 'success' ? 'notice notice-success' : 'notice notice-error';
+            $connectionSettings = \CRS\Settings::get();
+            $sourceUrl = (string) ($connectionSettings['source_url'] ?? '');
+            $apiUsername = (string) ($connectionSettings['api_username'] ?? '');
+            $hasPassword = (string) ($connectionSettings['api_application_password'] ?? '') !== '';
             ?>
 
             <?php if ($testStatus !== '' && $testMessage !== '') : ?>
@@ -55,6 +59,38 @@ if (! isset($tabs[$activeTab])) {
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
+
+            <?php settings_errors('crs_sync_settings_group'); ?>
+
+            <h2><?php echo esc_html__('Connection settings', 'carsystem-regional-sync'); ?></h2>
+            <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>" style="margin-bottom: 16px;">
+                <?php settings_fields('crs_sync_settings_group'); ?>
+
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="crs-source-url"><?php echo esc_html__('Source URL', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <input id="crs-source-url" type="url" class="regular-text" name="crs_sync_settings[source_url]" value="<?php echo esc_attr($sourceUrl); ?>" required>
+                            <p class="description"><?php echo esc_html__('Main site URL, e.g. https://carsystem.su', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-api-username"><?php echo esc_html__('API username', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <input id="crs-api-username" type="text" class="regular-text" name="crs_sync_settings[api_username]" value="<?php echo esc_attr($apiUsername); ?>" autocomplete="off" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-api-password"><?php echo esc_html__('Application password', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <input id="crs-api-password" type="password" class="regular-text" name="crs_sync_settings[api_application_password]" value="<?php echo esc_attr($hasPassword ? '********' : ''); ?>" autocomplete="new-password">
+                            <p class="description"><?php echo esc_html__('Leave as ******** to keep current password. Enter a new value to replace it.', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <?php submit_button(__('Save connection settings', 'carsystem-regional-sync')); ?>
+            </form>
 
             <p><?php echo esc_html__('Use this action to verify access to the remote WordPress REST API.', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
