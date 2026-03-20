@@ -40,7 +40,28 @@ if (! isset($tabs[$activeTab])) {
 
     <div style="margin-top: 16px;">
         <?php if ($activeTab === 'connection') : ?>
-            <p><?php echo esc_html__('Connection settings UI will be implemented in Milestone 4.', 'carsystem-regional-sync'); ?></p>
+            <?php
+            $testStatus = (string) ($connectionTest['status'] ?? '');
+            $testMessage = (string) ($connectionTest['message'] ?? '');
+            $testedAt = (string) ($connectionTest['tested_at'] ?? '');
+            $noticeClass = $testStatus === 'success' ? 'notice notice-success' : 'notice notice-error';
+            ?>
+
+            <?php if ($testStatus !== '' && $testMessage !== '') : ?>
+                <div class="<?php echo esc_attr($noticeClass); ?>" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html($testMessage); ?></strong></p>
+                    <?php if ($testedAt !== '') : ?>
+                        <p><?php echo esc_html(sprintf('Tested at (UTC): %s', $testedAt)); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <p><?php echo esc_html__('Use this action to verify access to the remote WordPress REST API.', 'carsystem-regional-sync'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="crs_test_connection">
+                <?php wp_nonce_field('crs_test_connection'); ?>
+                <?php submit_button(__('Test connection', 'carsystem-regional-sync')); ?>
+            </form>
         <?php elseif ($activeTab === 'region') : ?>
             <p><?php echo esc_html__('Region settings UI shell is ready. Fields will be added in next milestones.', 'carsystem-regional-sync'); ?></p>
         <?php elseif ($activeTab === 'partner') : ?>

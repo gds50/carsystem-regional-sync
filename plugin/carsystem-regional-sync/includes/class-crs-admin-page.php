@@ -30,6 +30,11 @@ final class Admin_Page
     public function render(): void
     {
         Security::assert_admin_access();
+        $connectionTest = get_option('crs_sync_last_connection_test', []);
+
+        if (! is_array($connectionTest)) {
+            $connectionTest = [];
+        }
 
         require CRS_SYNC_PLUGIN_DIR . '/templates/admin-page.php';
     }
