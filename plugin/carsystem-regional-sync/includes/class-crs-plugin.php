@@ -26,6 +26,7 @@ final class Plugin
         add_action('admin_menu', [$this, 'register_admin']);
         add_action('admin_post_crs_test_connection', [$this, 'handle_test_connection']);
         add_action('admin_post_crs_run_primary_regionalization', [$this, 'handle_primary_regionalization']);
+        add_action('admin_post_crs_run_sync_now', [$this, 'handle_run_sync_now']);
     }
 
     public function register_settings(): void
@@ -99,6 +100,15 @@ final class Plugin
             'error_count'   => (int) ($summary['error_count'] ?? 0),
             'message'       => (string) ($summary['message'] ?? ''),
         ]);
+
+        wp_safe_redirect(Admin_Page::page_url(['tab' => 'sync']));
+        exit;
+    }
+
+    public function handle_run_sync_now(): void
+    {
+        Security::assert_admin_action('crs_run_sync_now');
+        Sync_Runner::make()->run_sync('manual');
 
         wp_safe_redirect(Admin_Page::page_url(['tab' => 'sync']));
         exit;

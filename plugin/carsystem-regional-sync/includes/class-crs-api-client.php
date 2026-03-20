@@ -39,11 +39,27 @@ final class Api_Client
 
     public function fetch_pages(int $page = 1, int $perPage = 100): array
     {
-        return $this->get('/wp-json/wp/v2/pages', [
+        $query = [
             'page'     => $page,
             'per_page' => $perPage,
             'status'   => 'publish,draft,private,pending',
-        ]);
+            'context'  => 'edit',
+        ];
+
+        try {
+            return $this->get('/wp-json/wp/v2/pages', $query);
+        } catch (\RuntimeException $e) {
+            $message = $e->getMessage();
+            $isAuthError = strpos($message, 'HTTP 401') !== false || strpos($message, 'HTTP 403') !== false;
+
+            if (! $isAuthError) {
+                throw $e;
+            }
+        }
+
+        unset($query['context']);
+
+        return $this->get('/wp-json/wp/v2/pages', $query);
     }
 
     private function get(string $path, array $query = []): array

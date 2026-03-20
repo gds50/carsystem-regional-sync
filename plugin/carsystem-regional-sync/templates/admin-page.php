@@ -70,31 +70,99 @@ if (! isset($tabs[$activeTab])) {
             <p><?php echo esc_html__('Exclusions tab shell is ready.', 'carsystem-regional-sync'); ?></p>
         <?php elseif ($activeTab === 'sync') : ?>
             <?php
-            $runStatus = (string) ($primaryRegionalization['status'] ?? '');
-            $runMessage = (string) ($primaryRegionalization['message'] ?? '');
-            $runStarted = (string) ($primaryRegionalization['started_at'] ?? '');
-            $runFinished = (string) ($primaryRegionalization['finished_at'] ?? '');
-            $runChecked = (int) ($primaryRegionalization['checked_count'] ?? 0);
-            $runUpdated = (int) ($primaryRegionalization['updated_count'] ?? 0);
-            $runSkipped = (int) ($primaryRegionalization['skipped_count'] ?? 0);
-            $runErrors = (int) ($primaryRegionalization['error_count'] ?? 0);
-            $runNoticeClass = $runStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
+            $latestPrimaryLog = null;
+            $latestFullSyncLog = null;
+
+            foreach ($logs as $logItem) {
+                $runType = (string) ($logItem['run_type'] ?? '');
+
+                if ($latestPrimaryLog === null && $runType === 'primary_regionalization') {
+                    $latestPrimaryLog = $logItem;
+                }
+
+                if ($latestFullSyncLog === null && in_array($runType, ['manual', 'cron'], true)) {
+                    $latestFullSyncLog = $logItem;
+                }
+
+                if ($latestPrimaryLog !== null && $latestFullSyncLog !== null) {
+                    break;
+                }
+            }
+
+            $latestPrimaryId = (int) ($latestPrimaryLog['id'] ?? 0);
+            $latestSyncId = (int) ($latestFullSyncLog['id'] ?? 0);
+            $lastActionLabel = '';
+
+            if ($latestPrimaryId > 0 || $latestSyncId > 0) {
+                $lastActionLabel = $latestSyncId >= $latestPrimaryId
+                    ? __('Full sync (Run sync now)', 'carsystem-regional-sync')
+                    : __('Primary regionalization', 'carsystem-regional-sync');
+            }
             ?>
+
+            <p><?php echo esc_html__('Run full sync now (categories, products, pages).', 'carsystem-regional-sync'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="crs_run_sync_now">
+                <?php wp_nonce_field('crs_run_sync_now'); ?>
+                <?php submit_button(__('Run sync now', 'carsystem-regional-sync'), 'primary'); ?>
+            </form>
 
             <p><?php echo esc_html__('Run primary regionalization for local products and categories.', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="crs_run_primary_regionalization">
                 <?php wp_nonce_field('crs_run_primary_regionalization'); ?>
-                <?php submit_button(__('Primary regionalization', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Primary regionalization', 'carsystem-regional-sync'), 'secondary'); ?>
             </form>
 
-            <?php if ($runStatus !== '') : ?>
+            <?php if ($lastActionLabel !== '') : ?>
+                <p style="margin-top: 16px;"><strong><?php echo esc_html(sprintf('Latest action: %s', $lastActionLabel)); ?></strong></p>
+            <?php endif; ?>
+
+            <?php if (is_array($latestFullSyncLog)) : ?>
+                <?php
+                $syncStatus = (string) ($latestFullSyncLog['status'] ?? '');
+                $syncMessage = (string) ($latestFullSyncLog['message'] ?? '');
+                $syncStarted = (string) ($latestFullSyncLog['started_at'] ?? '');
+                $syncFinished = (string) ($latestFullSyncLog['finished_at'] ?? '');
+                $syncChecked = (int) ($latestFullSyncLog['checked_count'] ?? 0);
+                $syncUpdated = (int) ($latestFullSyncLog['updated_count'] ?? 0);
+                $syncCreated = (int) ($latestFullSyncLog['created_count'] ?? 0);
+                $syncSkipped = (int) ($latestFullSyncLog['skipped_count'] ?? 0);
+                $syncErrors = (int) ($latestFullSyncLog['error_count'] ?? 0);
+                $syncNoticeClass = $syncStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
+                ?>
+                <div class="<?php echo esc_attr($syncNoticeClass); ?>" style="margin: 16px 0 0 0;">
+                    <p><strong><?php echo esc_html(sprintf('Full sync status: %s', $syncStatus)); ?></strong></p>
+                    <?php if ($syncMessage !== '') : ?>
+                        <p><?php echo esc_html($syncMessage); ?></p>
+                    <?php endif; ?>
+                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Created: %d | Skipped: %d | Errors: %d', $syncChecked, $syncUpdated, $syncCreated, $syncSkipped, $syncErrors)); ?></p>
+                    <?php if ($syncStarted !== '' || $syncFinished !== '') : ?>
+                        <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $syncStarted, $syncFinished)); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (is_array($latestPrimaryLog) || (string) ($primaryRegionalization['status'] ?? '') !== '') : ?>
+                <?php
+                $primaryData = is_array($latestPrimaryLog) ? $latestPrimaryLog : $primaryRegionalization;
+                $runStatus = (string) ($primaryData['status'] ?? '');
+                $runMessage = (string) ($primaryData['message'] ?? '');
+                $runStarted = (string) ($primaryData['started_at'] ?? '');
+                $runFinished = (string) ($primaryData['finished_at'] ?? '');
+                $runChecked = (int) ($primaryData['checked_count'] ?? 0);
+                $runUpdated = (int) ($primaryData['updated_count'] ?? 0);
+                $runCreated = (int) ($primaryData['created_count'] ?? 0);
+                $runSkipped = (int) ($primaryData['skipped_count'] ?? 0);
+                $runErrors = (int) ($primaryData['error_count'] ?? 0);
+                $runNoticeClass = $runStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
+                ?>
                 <div class="<?php echo esc_attr($runNoticeClass); ?>" style="margin: 16px 0 0 0;">
-                    <p><strong><?php echo esc_html(sprintf('Status: %s', $runStatus)); ?></strong></p>
+                    <p><strong><?php echo esc_html(sprintf('Primary regionalization status: %s', $runStatus)); ?></strong></p>
                     <?php if ($runMessage !== '') : ?>
                         <p><?php echo esc_html($runMessage); ?></p>
                     <?php endif; ?>
-                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Skipped: %d | Errors: %d', $runChecked, $runUpdated, $runSkipped, $runErrors)); ?></p>
+                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Created: %d | Skipped: %d | Errors: %d', $runChecked, $runUpdated, $runCreated, $runSkipped, $runErrors)); ?></p>
                     <?php if ($runStarted !== '' || $runFinished !== '') : ?>
                         <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $runStarted, $runFinished)); ?></p>
                     <?php endif; ?>
