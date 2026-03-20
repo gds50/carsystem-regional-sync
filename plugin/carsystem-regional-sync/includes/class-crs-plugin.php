@@ -21,7 +21,11 @@ final class Plugin
 
     public function boot(): void
     {
-        // Milestone 1 bootstrap only:
-        // keep a stable initialization point for future hooks/services.
+        add_action('admin_init', [$this, 'register_settings']);
+    }
+
+    public function register_settings(): void
+    {
+        Settings::register();
     }
 }

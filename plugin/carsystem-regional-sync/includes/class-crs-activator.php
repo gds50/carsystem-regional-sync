@@ -11,6 +11,11 @@ final class Activator
     public static function activate(): void
     {
         self::assert_environment();
+
+        if (false === get_option(CRS_SYNC_OPTION_KEY)) {
+            add_option(CRS_SYNC_OPTION_KEY, Settings::defaults(), '', false);
+        }
+
         update_option('crs_sync_plugin_version', CRS_SYNC_VERSION, false);
     }
 
