@@ -679,6 +679,10 @@ final class Media_Sync_Service
 
     private function normalize_media_host_for_source(string $url): string
     {
+        if (! $this->is_local_media_copy_enabled()) {
+            return $url;
+        }
+
         $parts = wp_parse_url($url);
 
         if (! is_array($parts)) {

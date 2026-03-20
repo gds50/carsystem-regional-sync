@@ -1803,6 +1803,11 @@ final class Sync_Runner
     private function extract_source_host(): string
     {
         $settings = Settings::get();
+
+        if (empty($settings['use_local_media_copy'])) {
+            return '';
+        }
+
         $host = parse_url((string) ($settings['source_url'] ?? ''), PHP_URL_HOST);
 
         return strtolower(is_string($host) ? $host : '');
