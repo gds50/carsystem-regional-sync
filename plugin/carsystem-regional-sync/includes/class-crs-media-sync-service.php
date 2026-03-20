@@ -8,6 +8,9 @@ if (! defined('ABSPATH')) {
 
 final class Media_Sync_Service
 {
+    private const MAX_MEDIA_RETRY_ATTEMPTS = 3;
+    private const MEDIA_RETRY_BACKOFF_SECONDS = [1, 2, 4];
+
     private Media_Map_Repository $mediaMapRepository;
 
     public function __construct(?Media_Map_Repository $mediaMapRepository = null)
@@ -261,34 +264,56 @@ final class Media_Sync_Service
 
         $this->load_media_dependencies();
 
-        $tmpFile = download_url($remoteUrl, 30);
+        $lastErrorMessage = 'Media sync failed.';
+        $lastErrorCode = '';
+        $localAttachmentId = 0;
 
-        if (is_wp_error($tmpFile)) {
-            $message = 'Media download failed: ' . $tmpFile->get_error_message();
-            $this->mediaMapRepository->upsert([
-                'object_type'           => $objectType,
-                'object_remote_id'      => $objectRemoteId,
-                'remote_media_url'      => $remoteUrl,
-                'local_attachment_id'   => 0,
-                'remote_media_hash'     => $this->build_remote_media_hash($remoteUrl),
-                'last_operation_status' => 'error',
-                'last_error_message'    => $message,
-            ]);
+        for ($attempt = 1; $attempt <= self::MAX_MEDIA_RETRY_ATTEMPTS; $attempt++) {
+            $tmpFile = download_url($remoteUrl, 30);
 
-            throw new \RuntimeException($message);
-        }
+            if (is_wp_error($tmpFile)) {
+                $lastErrorMessage = 'Media download failed: ' . $tmpFile->get_error_message();
+                $lastErrorCode = (string) $tmpFile->get_error_code();
 
-        $filename = $this->build_filename_from_url($remoteUrl);
-        $fileArray = [
-            'name'     => $filename,
-            'tmp_name' => $tmpFile,
-        ];
+                if ($attempt < self::MAX_MEDIA_RETRY_ATTEMPTS && $this->should_retry_media_error($lastErrorCode, $lastErrorMessage)) {
+                    sleep((int) self::MEDIA_RETRY_BACKOFF_SECONDS[$attempt - 1]);
+                    continue;
+                }
 
-        $attachmentId = media_handle_sideload($fileArray, 0, '');
+                break;
+            }
 
-        if (is_wp_error($attachmentId)) {
+            $filename = $this->build_filename_from_url($remoteUrl);
+            $fileArray = [
+                'name'     => $filename,
+                'tmp_name' => $tmpFile,
+            ];
+
+            $attachmentId = media_handle_sideload($fileArray, 0, '');
+
+            if (! is_wp_error($attachmentId)) {
+                $localAttachmentId = (int) $attachmentId;
+                break;
+            }
+
             @unlink($tmpFile);
-            $message = 'Media sideload failed: ' . $attachmentId->get_error_message();
+            $lastErrorMessage = 'Media sideload failed: ' . $attachmentId->get_error_message();
+            $lastErrorCode = (string) $attachmentId->get_error_code();
+
+            if ($attempt < self::MAX_MEDIA_RETRY_ATTEMPTS && $this->should_retry_media_error($lastErrorCode, $lastErrorMessage)) {
+                sleep((int) self::MEDIA_RETRY_BACKOFF_SECONDS[$attempt - 1]);
+                continue;
+            }
+
+            break;
+        }
+
+        if ($localAttachmentId <= 0) {
+            $message = sanitize_text_field($lastErrorMessage);
+            if ($message === '') {
+                $message = 'Media sync failed.';
+            }
+
             $this->mediaMapRepository->upsert([
                 'object_type'           => $objectType,
                 'object_remote_id'      => $objectRemoteId,
@@ -302,7 +327,6 @@ final class Media_Sync_Service
             throw new \RuntimeException($message);
         }
 
-        $localAttachmentId = (int) $attachmentId;
         $this->normalize_attachment_title($localAttachmentId, $remoteUrl);
 
         $this->mediaMapRepository->upsert([
@@ -316,6 +340,42 @@ final class Media_Sync_Service
         ]);
 
         return $localAttachmentId;
+    }
+
+    private function should_retry_media_error(string $errorCode, string $errorMessage): bool
+    {
+        $code = strtolower(trim($errorCode));
+        $message = strtolower($errorMessage);
+
+        if (in_array($code, ['http_request_failed', 'http_429', 'http_500', 'http_502', 'http_503', 'http_504'], true)) {
+            return true;
+        }
+
+        $needles = [
+            'timed out',
+            'timeout',
+            'connection reset',
+            'connection refused',
+            'could not resolve host',
+            'temporarily unavailable',
+            'too many requests',
+            'http 429',
+            'http 500',
+            'http 502',
+            'http 503',
+            'http 504',
+            'ssl',
+            'curl error',
+            'operation timed out',
+        ];
+
+        foreach ($needles as $needle) {
+            if (strpos($message, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalize_attachment_title(int $attachmentId, string $remoteUrl): void

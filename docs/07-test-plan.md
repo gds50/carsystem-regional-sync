@@ -141,6 +141,12 @@
 - при наличии в `content` тегов `<img>/<video>/<source>` URL локализуются в attachment URL регионального сайта;
 - при ошибке загрузки одного media-файла run не падает целиком и фиксирует object-level ошибку.
 
+### Автоматизированные unit checks (текущее покрытие)
+- `Media_Sync_Service`: извлечение media URL из `img/source/video/a` и `data-*` атрибутов;
+- `Media_Sync_Service`: извлечение raw/escaped URL из текста и нормализация URL (без query/hash);
+- `Media_Sync_Service`: нормализация VideoPack/kgvid markup в единый `[videopack ...]` shortcode;
+- `Media_Sync_Service`: retry-policy для transient media ошибок (timeout/HTTP 429/5xx) и no-retry для постоянных ошибок (file-type/validation).
+
 ## 12. Dependency diagnostics tests
 
 - если в product/category/page есть video-маркеры VideoPack, а плагин не установлен/не активен, в лог run попадает сообщение:

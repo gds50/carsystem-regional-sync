@@ -47,10 +47,12 @@ final class CRS_Unit_Test_Runner
 require_once __DIR__ . '/../tests/unit/bootstrap.php';
 require_once __DIR__ . '/../tests/unit/settings-dictionary-test.php';
 require_once __DIR__ . '/../tests/unit/dependency-check-test.php';
+require_once __DIR__ . '/../tests/unit/media-sync-test.php';
 
 $runner = new CRS_Unit_Test_Runner();
 crs_run_settings_dictionary_tests($runner);
 crs_run_dependency_check_tests($runner);
+crs_run_media_sync_tests($runner);
 
 if ($runner->hasFailures()) {
     fwrite(STDERR, $runner->summary() . "\n");

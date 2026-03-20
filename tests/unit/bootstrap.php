@@ -70,6 +70,13 @@ if (! function_exists('wp_parse_args')) {
     }
 }
 
+if (! function_exists('wp_parse_url')) {
+    function wp_parse_url($url)
+    {
+        return parse_url((string) $url);
+    }
+}
+
 if (! function_exists('get_option')) {
     function get_option(string $option, $default = false)
     {
@@ -101,3 +108,5 @@ if (! function_exists('is_plugin_active')) {
 require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-settings.php';
 require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-dictionary.php';
 require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-dependency-check-service.php';
+require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-media-map-repository.php';
+require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-media-sync-service.php';
