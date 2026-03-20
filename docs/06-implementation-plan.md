@@ -95,9 +95,12 @@
 Сделать:
 - чтение remote товаров;
 - create/update локальных товаров;
+- перенос ключевых продуктовых полей из API: `description`, `short_description`, `sku`, `price/regular_price/sale_price`, `min_quantity/max_quantity/product_step`, `weight`, `dimensions`, `tax_status/tax_class`, `catalog_visibility`, `menu_order`, `type`, `attributes/tags/downloads` (как payload в тех. meta);
 - привязка категорий по mapping;
 - сохранение SEO meta;
 - повторная регионализация SEO.
+- drift-check локального товара по значимым полям, чтобы не пропускать рассинхрон;
+- unpublish logic для недоступных/непубличных remote товаров.
 
 Результат:
 - товары синхронизируются.

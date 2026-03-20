@@ -28,6 +28,23 @@
 - `status`
 - `description`
 - `short_description`
+- `sku`
+- `price`
+- `regular_price`
+- `sale_price`
+- `weight`
+- `dimensions`
+- `tax_status`
+- `tax_class`
+- `catalog_visibility`
+- `menu_order`
+- `type`
+- `attributes`
+- `tags`
+- `downloads`
+- `meta_data.min_quantity`
+- `meta_data.max_quantity`
+- `meta_data.product_step`
 - `categories`
 - `images` (для post-MVP media sync)
 - `date_modified_gmt`
@@ -118,6 +135,8 @@
 - затем выполнить словарную регионализацию SEO-полей.
 
 Для `category` в MVP обязательно синхронизировать `parent` и `description`, чтобы не ломалась иерархия и контент.
+Для `product` в MVP обязательно синхронизировать расширенный набор полей (включая `short_description`, цены, `min_quantity/max_quantity/product_step`, вес/габариты, tax и category mapping).
+Контроль остатков (`manage_stock/stock_quantity/stock_status`) в текущем scope отключён и не синхронизируется.
 
 ### Page
 Если remote payload изменился:
