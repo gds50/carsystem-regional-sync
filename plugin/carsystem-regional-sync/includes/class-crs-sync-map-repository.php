@@ -65,6 +65,24 @@ final class Sync_Map_Repository
         $wpdb->insert($this->table(), $payload);
     }
 
+    public function list_by_object_type(string $objectType): array
+    {
+        global $wpdb;
+
+        if (! $this->table_exists()) {
+            return [];
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$this->table()} WHERE object_type = %s",
+            $objectType
+        );
+
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
+    }
+
     private function table_exists(): bool
     {
         global $wpdb;

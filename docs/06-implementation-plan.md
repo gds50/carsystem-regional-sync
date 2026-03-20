@@ -81,6 +81,8 @@
 Сделать:
 - чтение remote категорий;
 - create/update локальных категорий;
+- синхронизацию `description`;
+- синхронизацию `parent` по mapping (с корректной иерархией);
 - сохранение SEO meta;
 - mapping update;
 - unpublish logic.
@@ -141,3 +143,14 @@
 
 Результат:
 - MVP готов к staging.
+
+## Post-MVP — Media sync (categories/products)
+
+Сделать:
+- синхронизацию миниатюр категорий (`image` -> `thumbnail_id`) при create/update;
+- синхронизацию изображений товаров (featured/gallery) при create/update;
+- безопасную загрузку media с retry и логированием ошибок по объектам;
+- хранение связи remote media -> local attachment для повторных run без дублей.
+
+Результат:
+- новые и обновлённые категории/товары переносятся вместе с изображениями.

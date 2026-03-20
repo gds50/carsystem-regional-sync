@@ -29,6 +29,7 @@
 - `description`
 - `short_description`
 - `categories`
+- `images` (для post-MVP media sync)
 - `date_modified_gmt`
 - `meta_data`
 
@@ -56,6 +57,10 @@
 - `seo_meta_title`
 - `seo_h1`
 - `seo_meta_description`
+
+Примечание по scope:
+- в MVP для категорий обязательны `name/slug/description/parent` и SEO-поля;
+- поле `image` резервируется для post-MVP media sync (перенос миниатюр).
 
 ### 2.4 Обычные страницы
 - `GET /wp-json/wp/v2/pages`
@@ -111,6 +116,8 @@
 Если remote payload изменился:
 - обновить локальный объект;
 - затем выполнить словарную регионализацию SEO-полей.
+
+Для `category` в MVP обязательно синхронизировать `parent` и `description`, чтобы не ломалась иерархия и контент.
 
 ### Page
 Если remote payload изменился:
