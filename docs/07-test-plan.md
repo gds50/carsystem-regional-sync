@@ -105,6 +105,7 @@
 - создаётся запись запуска
 - counters заполняются
 - ошибки сохраняются без sensitive data
+- для object-level dependency/media ошибок в `context_json` есть `object_type`, `remote_id`, `remote_slug`, `message`
 
 ## 9. Manual run tests
 
@@ -117,6 +118,7 @@
 - для full sync и primary regionalization отображаются отдельные статус-блоки на вкладке `Sync`
 - индикатор `Latest action` показывает фактически последнее действие по максимальному `log id`
 - блок расписания на вкладке `Sync` показывает `Auto sync`, `Sync time`, `Next scheduled run (UTC)`
+- `Run sync now` возвращает пользователя сразу (без долгого ожидания/504) и ставит full sync в background queue.
 
 ## 10. PHP compatibility tests
 
@@ -131,6 +133,7 @@
 - при создании новой категории переносится миниатюра (`thumbnail_id` не пустой);
 - при обновлении категории смена картинки на source обновляет локальную миниатюру;
 - при ошибке загрузки картинки run не падает целиком и фиксирует object-level ошибку.
+- при включенном `Local media copy` и доступном filesystem path файл берётся локально без HTTP-загрузки.
 
 ### Products
 - при создании нового товара переносится главное изображение;

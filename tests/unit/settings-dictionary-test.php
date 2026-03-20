@@ -29,6 +29,23 @@ function crs_run_settings_dictionary_tests(CRS_Unit_Test_Runner $runner): void
         'sanitize_time normalizes single digit hour'
     );
 
+    $sanitized = Settings::sanitize([
+        'use_local_media_copy' => '1',
+        'source_local_base_path' => " /home/g/gds50/carsystem.su/public_html/ \n",
+    ]);
+
+    $runner->assertSame(
+        1,
+        (int) ($sanitized['use_local_media_copy'] ?? 0),
+        'sanitize keeps local media copy toggle as enabled flag'
+    );
+
+    $runner->assertSame(
+        '/home/g/gds50/carsystem.su/public_html',
+        (string) ($sanitized['source_local_base_path'] ?? ''),
+        'sanitize trims and normalizes source local base path'
+    );
+
     $pairs = Dictionary::parse("москва => тюмень\nмоск => омск");
     $keys = array_keys($pairs);
 

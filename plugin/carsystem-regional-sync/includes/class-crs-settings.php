@@ -42,6 +42,8 @@ final class Settings
                 'polzovatelskoe-soglashenie',
                 'oplata',
             ],
+            'use_local_media_copy'      => 0,
+            'source_local_base_path'    => '',
             'auto_sync_enabled'         => 1,
             'sync_time'                 => '02:30',
         ];
@@ -73,6 +75,10 @@ final class Settings
             'partner_email'            => sanitize_email(array_key_exists('partner_email', $input) ? $input['partner_email'] : ($current['partner_email'] ?? '')),
             'partner_address'          => sanitize_textarea_field((string) (array_key_exists('partner_address', $input) ? $input['partner_address'] : ($current['partner_address'] ?? ''))),
             'excluded_slugs'           => self::sanitize_excluded_slugs(array_key_exists('excluded_slugs', $input) ? $input['excluded_slugs'] : ($current['excluded_slugs'] ?? [])),
+            'use_local_media_copy'     => array_key_exists('use_local_media_copy', $input)
+                ? (empty($input['use_local_media_copy']) ? 0 : 1)
+                : (int) ($current['use_local_media_copy'] ?? 0),
+            'source_local_base_path'   => self::sanitize_local_base_path((string) (array_key_exists('source_local_base_path', $input) ? $input['source_local_base_path'] : ($current['source_local_base_path'] ?? ''))),
             'auto_sync_enabled'        => array_key_exists('auto_sync_enabled', $input)
                 ? (empty($input['auto_sync_enabled']) ? 0 : 1)
                 : (int) ($current['auto_sync_enabled'] ?? $defaults['auto_sync_enabled']),
@@ -148,5 +154,18 @@ final class Settings
         }
 
         return preg_replace('/\s+/', ' ', $newPassword);
+    }
+
+    private static function sanitize_local_base_path(string $path): string
+    {
+        $path = sanitize_text_field($path);
+        $path = trim($path);
+        $path = str_replace(["\0", "\r", "\n"], '', $path);
+
+        if ($path === '') {
+            return '';
+        }
+
+        return rtrim($path, "/\\");
     }
 }

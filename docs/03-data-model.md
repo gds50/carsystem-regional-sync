@@ -24,6 +24,8 @@
         'polzovatelskoe-soglashenie',
         'oplata',
     ],
+    'use_local_media_copy' => false,
+    'source_local_base_path' => '',
     'auto_sync_enabled' => true,
     'sync_time' => '02:30',
 ]
@@ -73,6 +75,11 @@
 - `error_count` int unsigned
 - `message` text null
 - `context_json` longtext null
+
+Примечание по `context_json`:
+- допускается хранить object-level детали диагностики (`dependency_issues`, `object_errors`);
+- каждая запись должна включать минимум `object_type`, `remote_id`, `remote_slug`, `message`;
+- sensitive данные (пароли/Authorization) запрещены.
 
 ## 4. Table: `wp_crs_sync_media_map`
 

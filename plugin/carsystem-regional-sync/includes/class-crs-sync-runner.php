@@ -23,6 +23,11 @@ final class Sync_Runner
     private const MAX_PAGES = 1000;
     private const REMOTE_ID_META_KEY = '_crs_remote_id';
     private const UNPUBLISHED_META_KEY = '_crs_sync_unpublished';
+    private const MAX_CONTEXT_ISSUES = 100;
+    private const STALE_LOCK_TTL_SECONDS = 240;
+    private const SOFT_RUN_LIMIT_SECONDS = 540;
+    private const LOCK_HEARTBEAT_SECONDS = 15;
+    private const PROGRESS_FLUSH_OBJECTS = 20;
 
     private Api_Client $client;
     private Logger $logger;
@@ -32,6 +37,20 @@ final class Sync_Runner
     private Media_Map_Repository $mediaMapRepository;
     private Media_Sync_Service $mediaSyncService;
     private Dependency_Check_Service $dependencyCheckService;
+    /** @var float|null */
+    private $runDeadline;
+    private int $runLogId = 0;
+    /** @var array<string,int> */
+    private array $runProgress = [
+        'checked_count' => 0,
+        'updated_count' => 0,
+        'created_count' => 0,
+        'skipped_count' => 0,
+        'error_count' => 0,
+    ];
+    /** @var float */
+    private $lastLockHeartbeatAt = 0.0;
+    private int $progressOpsSinceFlush = 0;
 
     public function __construct(
         Api_Client $client,
@@ -56,6 +75,11 @@ final class Sync_Runner
     public static function make(): self
     {
         return new self(new Api_Client(Settings::get()), new Logger());
+    }
+
+    public static function cleanup_stale_state(): bool
+    {
+        return self::make()->try_cleanup_stale_lock_and_running_runs();
     }
 
     public function test_connection(): void
@@ -96,35 +120,159 @@ final class Sync_Runner
     public function run_sync(string $runType): void
     {
         if (! $this->lock->acquire($runType)) {
-            $logId = $this->logger->start($runType);
-            $this->logger->finish($logId, [
-                'status'        => 'partial',
-                'skipped_count' => 1,
-                'message'       => 'Sync skipped: another sync run is active.',
-            ]);
-            return;
+            $lockRecovered = $this->try_cleanup_stale_lock_and_running_runs();
+
+            if (! $lockRecovered || ! $this->lock->acquire($runType)) {
+                $logId = $this->logger->start($runType);
+                $this->logger->finish($logId, [
+                    'status'        => 'partial',
+                    'skipped_count' => 1,
+                    'message'       => 'Sync skipped: another sync run is active.',
+                ]);
+                return;
+            }
         }
 
         $logId = $this->logger->start($runType);
+        $this->begin_run_progress($logId);
+        $this->runDeadline = microtime(true) + self::SOFT_RUN_LIMIT_SECONDS;
+        register_shutdown_function(function () use ($logId): void {
+            $this->handle_unexpected_run_shutdown($logId);
+        });
 
         try {
             $settings = Settings::get();
 
-            $categorySummary = $this->run_categories_sync($settings);
-            $productSummary = $this->run_products_sync($settings);
-            $pageSummary = $this->run_pages_sync($settings);
+            $categorySummary = $this->run_categories_sync($settings, $logId);
+            $productSummary = $this->run_products_sync($settings, $logId);
+            $pageSummary = $this->run_pages_sync($settings, $logId);
             $summary = $this->merge_sync_summaries($categorySummary, $productSummary, $pageSummary);
 
             $this->logger->finish($logId, $summary);
         } catch (\Throwable $e) {
+            $isSoftTimeout = $this->is_soft_timeout_error($e->getMessage());
+            $message = $this->sanitize_error_message($e->getMessage());
+
+            if ($isSoftTimeout && $runType === 'manual') {
+                $this->schedule_manual_continuation();
+                $message .= ' Continuation was queued automatically.';
+            }
+
             $this->logger->finish($logId, [
-                'status'      => 'error',
-                'error_count' => 1,
-                'message'     => $this->sanitize_error_message($e->getMessage()),
+                'status'      => $isSoftTimeout ? 'partial' : 'error',
+                'checked_count' => (int) ($this->runProgress['checked_count'] ?? 0),
+                'updated_count' => (int) ($this->runProgress['updated_count'] ?? 0),
+                'created_count' => (int) ($this->runProgress['created_count'] ?? 0),
+                'skipped_count' => (int) ($this->runProgress['skipped_count'] ?? 0),
+                'error_count' => max(1, (int) ($this->runProgress['error_count'] ?? 0)),
+                'message'     => $message,
             ]);
         } finally {
             $this->lock->release();
+            $this->runDeadline = null;
+            $this->runLogId = 0;
+            $this->progressOpsSinceFlush = 0;
         }
+    }
+
+    private function handle_unexpected_run_shutdown(int $logId): void
+    {
+        if ($logId <= 0) {
+            return;
+        }
+
+        global $wpdb;
+
+        $logRepository = new Sync_Log_Repository();
+        $table = $logRepository->table();
+        $row = $wpdb->get_row(
+            $wpdb->prepare("SELECT status, finished_at FROM {$table} WHERE id = %d LIMIT 1", $logId),
+            ARRAY_A
+        );
+
+        if (! is_array($row)) {
+            return;
+        }
+
+        $status = (string) ($row['status'] ?? '');
+        $finishedAt = (string) ($row['finished_at'] ?? '');
+
+        if ($status !== 'running' || $finishedAt !== '') {
+            return;
+        }
+
+        $message = 'Sync interrupted unexpectedly (shutdown guard).';
+        $lastError = error_get_last();
+
+        if (is_array($lastError) && isset($lastError['message'])) {
+            $errorMessage = $this->sanitize_error_message((string) $lastError['message']);
+            if ($errorMessage !== '') {
+                $message .= ' ' . $errorMessage;
+            }
+        }
+
+        $logRepository->update($logId, [
+            'status'      => 'partial',
+            'finished_at' => current_time('mysql', true),
+            'message'     => $message,
+        ]);
+
+        delete_option(CRS_SYNC_LOCK_KEY);
+    }
+
+    private function try_cleanup_stale_lock_and_running_runs(): bool
+    {
+        $lockState = get_option(CRS_SYNC_LOCK_KEY, []);
+
+        if (! is_array($lockState)) {
+            return false;
+        }
+
+        $lockedAtRaw = (string) ($lockState['locked_at'] ?? '');
+        $lockedAt = $lockedAtRaw !== '' ? strtotime($lockedAtRaw) : false;
+
+        if (! $lockedAt) {
+            return false;
+        }
+
+        if ((time() - $lockedAt) < self::STALE_LOCK_TTL_SECONDS) {
+            return false;
+        }
+
+        $logRepository = new Sync_Log_Repository();
+        $recentLogs = $logRepository->latest(200);
+        $nowUtc = current_time('mysql', true);
+
+        foreach ($recentLogs as $log) {
+            if (! is_array($log)) {
+                continue;
+            }
+
+            $status = (string) ($log['status'] ?? '');
+            $runType = (string) ($log['run_type'] ?? '');
+            $finishedAt = (string) ($log['finished_at'] ?? '');
+
+            if ($status !== 'running' || ! in_array($runType, ['manual', 'cron'], true) || $finishedAt !== '') {
+                continue;
+            }
+
+            $startedAtRaw = (string) ($log['started_at'] ?? '');
+            $startedAt = $startedAtRaw !== '' ? strtotime($startedAtRaw) : false;
+
+            if (! $startedAt || (time() - $startedAt) < self::STALE_LOCK_TTL_SECONDS) {
+                continue;
+            }
+
+            $logRepository->update((int) ($log['id'] ?? 0), [
+                'status'      => 'partial',
+                'finished_at' => $nowUtc,
+                'message'     => 'Sync interrupted (stale lock auto-cleanup).',
+            ]);
+        }
+
+        delete_option(CRS_SYNC_LOCK_KEY);
+
+        return true;
     }
 
     private function merge_sync_summaries(array $categorySummary, array $productSummary, array $pageSummary): array
@@ -162,9 +310,25 @@ final class Sync_Runner
         $message = $this->append_dependency_warnings_to_message($message, $dependencyWarnings);
 
         $context = [];
+        $dependencyIssues = array_merge(
+            (array) ($categorySummary['dependency_issues'] ?? []),
+            (array) ($productSummary['dependency_issues'] ?? []),
+            (array) ($pageSummary['dependency_issues'] ?? [])
+        );
+        $objectErrors = array_merge(
+            (array) ($categorySummary['object_errors'] ?? []),
+            (array) ($productSummary['object_errors'] ?? []),
+            (array) ($pageSummary['object_errors'] ?? [])
+        );
 
         if ($dependencyWarnings !== []) {
             $context['dependency_warnings'] = $dependencyWarnings;
+        }
+        if ($dependencyIssues !== []) {
+            $context['dependency_issues'] = array_slice($dependencyIssues, 0, self::MAX_CONTEXT_ISSUES);
+        }
+        if ($objectErrors !== []) {
+            $context['object_errors'] = array_slice($objectErrors, 0, self::MAX_CONTEXT_ISSUES);
         }
 
         $result = [
@@ -177,6 +341,14 @@ final class Sync_Runner
             'message'       => $message,
         ];
 
+        if ($dependencyIssues !== [] || $objectErrors !== []) {
+            $result['message'] .= sprintf(
+                ' Object-level details: dependency=%d, errors=%d.',
+                count($dependencyIssues),
+                count($objectErrors)
+            );
+        }
+
         if ($context !== []) {
             $encodedContext = wp_json_encode($context);
             $result['context_json'] = is_string($encodedContext) ? $encodedContext : null;
@@ -185,7 +357,7 @@ final class Sync_Runner
         return $result;
     }
 
-    private function run_categories_sync(array $settings): array
+    private function run_categories_sync(array $settings, int $logId): array
     {
         $summary = [
             'status'        => 'success',
@@ -195,55 +367,110 @@ final class Sync_Runner
             'skipped_count' => 0,
             'error_count'   => 0,
             'message'       => '',
+            'dependency_issues' => [],
+            'object_errors' => [],
         ];
-
-        try {
-            $remoteCategories = $this->fetch_all_remote_categories();
-        } catch (\Throwable $e) {
-            $summary['status'] = 'partial';
-            $summary['error_count'] = 1;
-            $summary['message'] = 'Categories fetch failed: ' . sanitize_text_field($e->getMessage());
-            return $summary;
-        }
 
         $seenRemoteIds = [];
         $pendingParentAssignments = [];
         $dependencyWarnings = [];
+        $dependencyIssues = [];
+        $stopRequested = false;
+        $page = 1;
 
-        foreach ($remoteCategories as $remoteCategory) {
-            $summary['checked_count']++;
+        while ($page <= self::MAX_PAGES) {
+            $this->assert_run_time_budget('fetch_categories');
 
             try {
-                $this->collect_dependency_warnings(self::CATEGORY_OBJECT_TYPE, $remoteCategory, $dependencyWarnings);
-                $result = $this->sync_single_category(
-                    $remoteCategory,
-                    $settings,
-                    $seenRemoteIds,
-                    $pendingParentAssignments
-                );
-
-                if ($result === 'created') {
-                    $summary['created_count']++;
-                    continue;
-                }
-
-                if ($result === 'updated') {
-                    $summary['updated_count']++;
-                    continue;
-                }
-
-                $summary['skipped_count']++;
+                $batch = $this->client->fetch_categories($page, self::CATEGORY_PER_PAGE);
             } catch (\Throwable $e) {
-                $summary['error_count']++;
-                $this->mark_category_sync_error($remoteCategory, $this->sanitize_error_message($e->getMessage()));
+                $summary['status'] = 'partial';
+                $this->increment_summary_counter($summary, 'error_count');
+                $summary['message'] = 'Categories fetch failed on page ' . (int) $page . ': ' . sanitize_text_field($e->getMessage());
+                break;
             }
+
+            if (! is_array($batch) || $batch === []) {
+                break;
+            }
+
+            usort($batch, static function (array $left, array $right): int {
+                $leftParent = (int) ($left['parent'] ?? 0);
+                $rightParent = (int) ($right['parent'] ?? 0);
+
+                if ($leftParent === $rightParent) {
+                    return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+                }
+
+                return $leftParent <=> $rightParent;
+            });
+
+            foreach ($batch as $remoteCategory) {
+                if (! is_array($remoteCategory)) {
+                    continue;
+                }
+
+                $this->assert_run_time_budget('categories');
+                $this->increment_summary_counter($summary, 'checked_count');
+
+                try {
+                    $this->collect_dependency_warnings(self::CATEGORY_OBJECT_TYPE, $remoteCategory, $dependencyWarnings, $dependencyIssues);
+                    $result = $this->sync_single_category(
+                        $remoteCategory,
+                        $settings,
+                        $seenRemoteIds,
+                        $pendingParentAssignments
+                    );
+
+                    if ($result === 'created') {
+                        $this->increment_summary_counter($summary, 'created_count');
+                    } elseif ($result === 'updated') {
+                        $this->increment_summary_counter($summary, 'updated_count');
+                    } else {
+                        $this->increment_summary_counter($summary, 'skipped_count');
+                    }
+                } catch (\Throwable $e) {
+                    $this->increment_summary_counter($summary, 'error_count');
+                    $errorMessage = $this->sanitize_error_message($e->getMessage());
+                    $this->mark_category_sync_error($remoteCategory, $errorMessage);
+                    $this->append_object_issue($summary['object_errors'], $this->build_object_issue(
+                        self::CATEGORY_OBJECT_TYPE,
+                        $remoteCategory,
+                        $errorMessage
+                    ));
+
+                    if ($this->is_storage_quota_error($errorMessage)) {
+                        $summary['status'] = 'partial';
+                        $summary['message'] = 'Categories sync stopped: disk quota exceeded on regional uploads.';
+                        $stopRequested = true;
+                        break;
+                    }
+                }
+            }
+
+            $this->flush_run_progress('categories page ' . (int) $page, false);
+
+            if ($stopRequested || count($batch) < self::CATEGORY_PER_PAGE) {
+                break;
+            }
+
+            $page++;
         }
 
         $parentSyncResult = $this->apply_deferred_parent_assignments($pendingParentAssignments);
-        $summary['updated_count'] += (int) ($parentSyncResult['updated'] ?? 0);
-        $summary['error_count'] += (int) ($parentSyncResult['errors'] ?? 0);
+        $parentUpdated = (int) ($parentSyncResult['updated'] ?? 0);
+        $parentErrors = (int) ($parentSyncResult['errors'] ?? 0);
+        if ($parentUpdated > 0) {
+            $this->increment_summary_counter($summary, 'updated_count', $parentUpdated);
+        }
+        if ($parentErrors > 0) {
+            $this->increment_summary_counter($summary, 'error_count', $parentErrors);
+        }
 
-        $summary['updated_count'] += $this->apply_category_unpublish_logic($seenRemoteIds);
+        $categoryUnpublished = (int) $this->apply_category_unpublish_logic($seenRemoteIds);
+        if ($categoryUnpublished > 0) {
+            $this->increment_summary_counter($summary, 'updated_count', $categoryUnpublished);
+        }
 
         if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
@@ -254,11 +481,13 @@ final class Sync_Runner
 
         $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
         $summary['dependency_warnings'] = $dependencyWarnings;
+        $summary['dependency_issues'] = $dependencyIssues;
+        $this->flush_run_progress('categories complete', true);
 
         return $summary;
     }
 
-    private function run_products_sync(array $settings): array
+    private function run_products_sync(array $settings, int $logId): array
     {
         $summary = [
             'status'        => 'success',
@@ -268,46 +497,85 @@ final class Sync_Runner
             'skipped_count' => 0,
             'error_count'   => 0,
             'message'       => '',
+            'dependency_issues' => [],
+            'object_errors' => [],
         ];
 
         $dictionary = Dictionary::parse((string) ($settings['replacement_dictionary'] ?? ''));
-        try {
-            $remoteProducts = $this->fetch_all_remote_products();
-        } catch (\Throwable $e) {
-            $summary['status'] = 'partial';
-            $summary['error_count'] = 1;
-            $summary['message'] = 'Products fetch failed: ' . sanitize_text_field($e->getMessage());
-            return $summary;
-        }
 
         $seenRemoteIds = [];
         $dependencyWarnings = [];
+        $dependencyIssues = [];
+        $stopRequested = false;
+        $page = 1;
 
-        foreach ($remoteProducts as $remoteProduct) {
-            $summary['checked_count']++;
+        while ($page <= self::MAX_PAGES) {
+            $this->assert_run_time_budget('fetch_products');
 
             try {
-                $this->collect_dependency_warnings(self::PRODUCT_OBJECT_TYPE, $remoteProduct, $dependencyWarnings);
-                $result = $this->sync_single_product($remoteProduct, $settings, $dictionary, $seenRemoteIds);
-
-                if ($result === 'created') {
-                    $summary['created_count']++;
-                    continue;
-                }
-
-                if ($result === 'updated') {
-                    $summary['updated_count']++;
-                    continue;
-                }
-
-                $summary['skipped_count']++;
+                $batch = $this->client->fetch_products($page, self::PRODUCT_PER_PAGE);
             } catch (\Throwable $e) {
-                $summary['error_count']++;
-                $this->mark_product_sync_error($remoteProduct, $this->sanitize_error_message($e->getMessage()));
+                $summary['status'] = 'partial';
+                $this->increment_summary_counter($summary, 'error_count');
+                $summary['message'] = 'Products fetch failed on page ' . (int) $page . ': ' . sanitize_text_field($e->getMessage());
+                break;
             }
+
+            if (! is_array($batch) || $batch === []) {
+                break;
+            }
+
+            foreach ($batch as $remoteProduct) {
+                if (! is_array($remoteProduct)) {
+                    continue;
+                }
+
+                $this->assert_run_time_budget('products');
+                $this->increment_summary_counter($summary, 'checked_count');
+
+                try {
+                    $this->collect_dependency_warnings(self::PRODUCT_OBJECT_TYPE, $remoteProduct, $dependencyWarnings, $dependencyIssues);
+                    $result = $this->sync_single_product($remoteProduct, $settings, $dictionary, $seenRemoteIds);
+
+                    if ($result === 'created') {
+                        $this->increment_summary_counter($summary, 'created_count');
+                    } elseif ($result === 'updated') {
+                        $this->increment_summary_counter($summary, 'updated_count');
+                    } else {
+                        $this->increment_summary_counter($summary, 'skipped_count');
+                    }
+                } catch (\Throwable $e) {
+                    $this->increment_summary_counter($summary, 'error_count');
+                    $errorMessage = $this->sanitize_error_message($e->getMessage());
+                    $this->mark_product_sync_error($remoteProduct, $errorMessage);
+                    $this->append_object_issue($summary['object_errors'], $this->build_object_issue(
+                        self::PRODUCT_OBJECT_TYPE,
+                        $remoteProduct,
+                        $errorMessage
+                    ));
+
+                    if ($this->is_storage_quota_error($errorMessage)) {
+                        $summary['status'] = 'partial';
+                        $summary['message'] = 'Products sync stopped: disk quota exceeded on regional uploads.';
+                        $stopRequested = true;
+                        break;
+                    }
+                }
+            }
+
+            $this->flush_run_progress('products page ' . (int) $page, false);
+
+            if ($stopRequested || count($batch) < self::PRODUCT_PER_PAGE) {
+                break;
+            }
+
+            $page++;
         }
 
-        $summary['updated_count'] += $this->apply_product_unpublish_logic($seenRemoteIds);
+        $productUnpublished = (int) $this->apply_product_unpublish_logic($seenRemoteIds);
+        if ($productUnpublished > 0) {
+            $this->increment_summary_counter($summary, 'updated_count', $productUnpublished);
+        }
 
         if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
@@ -318,11 +586,13 @@ final class Sync_Runner
 
         $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
         $summary['dependency_warnings'] = $dependencyWarnings;
+        $summary['dependency_issues'] = $dependencyIssues;
+        $this->flush_run_progress('products complete', true);
 
         return $summary;
     }
 
-    private function run_pages_sync(array $settings): array
+    private function run_pages_sync(array $settings, int $logId): array
     {
         $summary = [
             'status'        => 'success',
@@ -332,45 +602,83 @@ final class Sync_Runner
             'skipped_count' => 0,
             'error_count'   => 0,
             'message'       => '',
+            'dependency_issues' => [],
+            'object_errors' => [],
         ];
-
-        try {
-            $remotePages = $this->fetch_all_remote_pages();
-        } catch (\Throwable $e) {
-            $summary['status'] = 'partial';
-            $summary['error_count'] = 1;
-            $summary['message'] = 'Pages fetch failed: ' . sanitize_text_field($e->getMessage());
-            return $summary;
-        }
 
         $seenRemoteIds = [];
         $dependencyWarnings = [];
+        $dependencyIssues = [];
+        $stopRequested = false;
+        $page = 1;
 
-        foreach ($remotePages as $remotePage) {
-            $summary['checked_count']++;
+        while ($page <= self::MAX_PAGES) {
+            $this->assert_run_time_budget('fetch_pages');
 
             try {
-                $this->collect_dependency_warnings(self::PAGE_OBJECT_TYPE, $remotePage, $dependencyWarnings);
-                $result = $this->sync_single_page($remotePage, $settings, $seenRemoteIds);
-
-                if ($result === 'created') {
-                    $summary['created_count']++;
-                    continue;
-                }
-
-                if ($result === 'updated') {
-                    $summary['updated_count']++;
-                    continue;
-                }
-
-                $summary['skipped_count']++;
+                $batch = $this->client->fetch_pages($page, self::PAGE_PER_PAGE);
             } catch (\Throwable $e) {
-                $summary['error_count']++;
-                $this->mark_page_sync_error($remotePage, $this->sanitize_error_message($e->getMessage()));
+                $summary['status'] = 'partial';
+                $this->increment_summary_counter($summary, 'error_count');
+                $summary['message'] = 'Pages fetch failed on page ' . (int) $page . ': ' . sanitize_text_field($e->getMessage());
+                break;
             }
+
+            if (! is_array($batch) || $batch === []) {
+                break;
+            }
+
+            foreach ($batch as $remotePage) {
+                if (! is_array($remotePage)) {
+                    continue;
+                }
+
+                $this->assert_run_time_budget('pages');
+                $this->increment_summary_counter($summary, 'checked_count');
+
+                try {
+                    $this->collect_dependency_warnings(self::PAGE_OBJECT_TYPE, $remotePage, $dependencyWarnings, $dependencyIssues);
+                    $result = $this->sync_single_page($remotePage, $settings, $seenRemoteIds);
+
+                    if ($result === 'created') {
+                        $this->increment_summary_counter($summary, 'created_count');
+                    } elseif ($result === 'updated') {
+                        $this->increment_summary_counter($summary, 'updated_count');
+                    } else {
+                        $this->increment_summary_counter($summary, 'skipped_count');
+                    }
+                } catch (\Throwable $e) {
+                    $this->increment_summary_counter($summary, 'error_count');
+                    $errorMessage = $this->sanitize_error_message($e->getMessage());
+                    $this->mark_page_sync_error($remotePage, $errorMessage);
+                    $this->append_object_issue($summary['object_errors'], $this->build_object_issue(
+                        self::PAGE_OBJECT_TYPE,
+                        $remotePage,
+                        $errorMessage
+                    ));
+
+                    if ($this->is_storage_quota_error($errorMessage)) {
+                        $summary['status'] = 'partial';
+                        $summary['message'] = 'Pages sync stopped: disk quota exceeded on regional uploads.';
+                        $stopRequested = true;
+                        break;
+                    }
+                }
+            }
+
+            $this->flush_run_progress('pages page ' . (int) $page, false);
+
+            if ($stopRequested || count($batch) < self::PAGE_PER_PAGE) {
+                break;
+            }
+
+            $page++;
         }
 
-        $summary['updated_count'] += $this->apply_page_unpublish_logic($seenRemoteIds);
+        $pageUnpublished = (int) $this->apply_page_unpublish_logic($seenRemoteIds);
+        if ($pageUnpublished > 0) {
+            $this->increment_summary_counter($summary, 'updated_count', $pageUnpublished);
+        }
 
         if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
@@ -381,103 +689,111 @@ final class Sync_Runner
 
         $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
         $summary['dependency_warnings'] = $dependencyWarnings;
+        $summary['dependency_issues'] = $dependencyIssues;
+        $this->flush_run_progress('pages complete', true);
 
         return $summary;
     }
 
-    private function fetch_all_remote_categories(): array
+    private function begin_run_progress(int $logId): void
     {
-        $page = 1;
-        $categories = [];
-
-        while ($page <= self::MAX_PAGES) {
-            $batch = $this->client->fetch_categories($page, self::CATEGORY_PER_PAGE);
-
-            if (! is_array($batch) || $batch === []) {
-                break;
-            }
-
-            foreach ($batch as $item) {
-                if (is_array($item)) {
-                    $categories[] = $item;
-                }
-            }
-
-            if (count($batch) < self::CATEGORY_PER_PAGE) {
-                break;
-            }
-
-            $page++;
-        }
-
-        usort($categories, static function (array $left, array $right): int {
-            $leftParent = (int) ($left['parent'] ?? 0);
-            $rightParent = (int) ($right['parent'] ?? 0);
-
-            if ($leftParent === $rightParent) {
-                return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
-            }
-
-            return $leftParent <=> $rightParent;
-        });
-
-        return $categories;
+        $this->runLogId = max(0, $logId);
+        $this->runProgress = [
+            'checked_count' => 0,
+            'updated_count' => 0,
+            'created_count' => 0,
+            'skipped_count' => 0,
+            'error_count' => 0,
+        ];
+        $this->lastLockHeartbeatAt = 0.0;
+        $this->progressOpsSinceFlush = 0;
+        $this->flush_run_progress('started', true);
     }
 
-    private function fetch_all_remote_products(): array
+    private function increment_summary_counter(array &$summary, string $counterKey, int $delta = 1): void
     {
-        $page = 1;
-        $products = [];
-
-        while ($page <= self::MAX_PAGES) {
-            $batch = $this->client->fetch_products($page, self::PRODUCT_PER_PAGE);
-
-            if (! is_array($batch) || $batch === []) {
-                break;
-            }
-
-            foreach ($batch as $item) {
-                if (is_array($item)) {
-                    $products[] = $item;
-                }
-            }
-
-            if (count($batch) < self::PRODUCT_PER_PAGE) {
-                break;
-            }
-
-            $page++;
+        if ($delta <= 0) {
+            return;
         }
 
-        return $products;
+        $summary[$counterKey] = (int) ($summary[$counterKey] ?? 0) + $delta;
+        $this->runProgress[$counterKey] = (int) ($this->runProgress[$counterKey] ?? 0) + $delta;
+        $this->progressOpsSinceFlush += $delta;
     }
 
-    private function fetch_all_remote_pages(): array
+    private function flush_run_progress(string $stage, bool $force): void
     {
-        $page = 1;
-        $pages = [];
-
-        while ($page <= self::MAX_PAGES) {
-            $batch = $this->client->fetch_pages($page, self::PAGE_PER_PAGE);
-
-            if (! is_array($batch) || $batch === []) {
-                break;
-            }
-
-            foreach ($batch as $item) {
-                if (is_array($item)) {
-                    $pages[] = $item;
-                }
-            }
-
-            if (count($batch) < self::PAGE_PER_PAGE) {
-                break;
-            }
-
-            $page++;
+        if ($this->runLogId <= 0) {
+            return;
         }
 
-        return $pages;
+        if (! $force && $this->progressOpsSinceFlush < self::PROGRESS_FLUSH_OBJECTS) {
+            return;
+        }
+
+        $message = 'Running: ' . sanitize_text_field($stage) . '.';
+        (new Sync_Log_Repository())->update($this->runLogId, [
+            'status' => 'running',
+            'checked_count' => (int) ($this->runProgress['checked_count'] ?? 0),
+            'updated_count' => (int) ($this->runProgress['updated_count'] ?? 0),
+            'created_count' => (int) ($this->runProgress['created_count'] ?? 0),
+            'skipped_count' => (int) ($this->runProgress['skipped_count'] ?? 0),
+            'error_count' => (int) ($this->runProgress['error_count'] ?? 0),
+            'message' => $message,
+        ]);
+
+        $this->progressOpsSinceFlush = 0;
+    }
+
+    private function assert_run_time_budget(string $scope): void
+    {
+        if (! is_float($this->runDeadline)) {
+            return;
+        }
+
+        if (microtime(true) < $this->runDeadline) {
+            $this->touch_lock_heartbeat();
+            return;
+        }
+
+        throw new \RuntimeException('Sync soft timeout reached in ' . sanitize_key($scope) . '. Run is split and will continue on next launch.');
+    }
+
+    private function touch_lock_heartbeat(): void
+    {
+        $now = microtime(true);
+
+        if (($now - (float) $this->lastLockHeartbeatAt) < self::LOCK_HEARTBEAT_SECONDS) {
+            return;
+        }
+
+        $this->lock->touch();
+        $this->lastLockHeartbeatAt = $now;
+    }
+
+    private function schedule_manual_continuation(): void
+    {
+        if (wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK) !== false) {
+            return;
+        }
+
+        wp_schedule_single_event(time() + 15, CRS_SYNC_MANUAL_CRON_HOOK, []);
+
+        if (function_exists('spawn_cron')) {
+            spawn_cron();
+            return;
+        }
+
+        wp_remote_post(site_url('wp-cron.php?doing_wp_cron=' . rawurlencode((string) microtime(true))), [
+            'timeout' => 0.01,
+            'blocking' => false,
+            'sslverify' => apply_filters('https_local_ssl_verify', false),
+        ]);
+    }
+
+    private function is_soft_timeout_error(string $message): bool
+    {
+        return strpos(strtolower($message), 'soft timeout reached') !== false;
     }
 
     private function sync_single_category(
@@ -1386,7 +1702,7 @@ final class Sync_Runner
 
         if (isset($attributeMatches[2]) && is_array($attributeMatches[2])) {
             foreach ($attributeMatches[2] as $rawUrl) {
-                $url = esc_url_raw((string) $rawUrl);
+                $url = $this->sanitize_media_url_for_lookup((string) $rawUrl);
 
                 if ($url === '') {
                     continue;
@@ -1404,7 +1720,7 @@ final class Sync_Runner
         if (isset($textMatches[0]) && is_array($textMatches[0])) {
             foreach ($textMatches[0] as $rawUrl) {
                 $rawUrl = rtrim((string) $rawUrl, ".,);]");
-                $url = esc_url_raw($rawUrl);
+                $url = $this->sanitize_media_url_for_lookup($rawUrl);
 
                 if ($url === '') {
                     continue;
@@ -1434,6 +1750,62 @@ final class Sync_Runner
         $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
 
         return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'mp4', 'webm', 'ogg', 'mov', 'm4v', 'avi'], true);
+    }
+
+    private function sanitize_media_url_for_lookup(string $rawUrl): string
+    {
+        $url = trim($rawUrl);
+
+        if ($url === '') {
+            return '';
+        }
+
+        if (strpos($url, '//') === 0) {
+            $url = 'https:' . $url;
+        }
+
+        $url = esc_url_raw($url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        $parts = wp_parse_url($url);
+
+        if (! is_array($parts)) {
+            return '';
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = (string) ($parts['path'] ?? '');
+        $port = isset($parts['port']) ? (int) $parts['port'] : 0;
+
+        if (! in_array($scheme, ['http', 'https'], true) || $host === '' || $path === '') {
+            return '';
+        }
+
+        $sourceHost = $this->extract_source_host();
+
+        if ($sourceHost !== '' && $host !== $sourceHost && strpos($path, '/wp-content/uploads/') === 0) {
+            $host = $sourceHost;
+        }
+
+        $normalized = $scheme . '://' . $host;
+
+        if ($port > 0 && $port !== 80 && $port !== 443) {
+            $normalized .= ':' . $port;
+        }
+
+        return $normalized . $path;
+    }
+
+    private function extract_source_host(): string
+    {
+        $settings = Settings::get();
+        $host = parse_url((string) ($settings['source_url'] ?? ''), PHP_URL_HOST);
+
+        return strtolower(is_string($host) ? $host : '');
     }
 
     private function has_local_page_drift(\WP_Post $localPost, array $remotePage): bool
@@ -2152,7 +2524,7 @@ final class Sync_Runner
         return $this->sanitize_decimal_string((string) ($remoteProduct['regular_price'] ?? ''));
     }
 
-    private function collect_dependency_warnings(string $objectType, array $remoteObject, array &$warnings): void
+    private function collect_dependency_warnings(string $objectType, array $remoteObject, array &$warnings, array &$issues): void
     {
         $missing = $this->dependencyCheckService->detect_missing_for_object($objectType, $remoteObject);
 
@@ -2160,8 +2532,16 @@ final class Sync_Runner
             return;
         }
 
-        $warnings[] = $this->dependencyCheckService->format_missing_message($missing);
+        $message = $this->dependencyCheckService->format_missing_message($missing);
+        $warnings[] = $message;
         $warnings = array_values(array_unique($warnings));
+        $this->append_object_issue($issues, array_merge(
+            $this->build_object_issue($objectType, $remoteObject, $message),
+            [
+                'issue_type' => 'dependency',
+                'missing_dependencies' => array_values($missing),
+            ]
+        ));
     }
 
     private function append_dependency_warnings_to_message(string $baseMessage, array $warnings): string
@@ -2192,6 +2572,7 @@ final class Sync_Runner
         $slug = sanitize_title((string) ($remoteCategory['slug'] ?? ''));
         $mapping = $this->mapRepository->find_by_remote(self::CATEGORY_OBJECT_TYPE, $remoteId);
         $localTerm = $this->resolve_local_term($mapping, $slug);
+        $scopedMessage = $this->build_object_scoped_error_message(self::CATEGORY_OBJECT_TYPE, $remoteId, $slug, $message);
 
         $this->mapRepository->upsert([
             'object_type'           => self::CATEGORY_OBJECT_TYPE,
@@ -2201,7 +2582,7 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remoteCategory),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => $this->sanitize_error_message($message),
+            'last_error_message'    => $scopedMessage,
         ]);
     }
 
@@ -2216,6 +2597,7 @@ final class Sync_Runner
         $slug = sanitize_title((string) ($remoteProduct['slug'] ?? ''));
         $mapping = $this->mapRepository->find_by_remote(self::PRODUCT_OBJECT_TYPE, $remoteId);
         $localPost = $this->resolve_local_product($mapping, $slug);
+        $scopedMessage = $this->build_object_scoped_error_message(self::PRODUCT_OBJECT_TYPE, $remoteId, $slug, $message);
 
         $this->mapRepository->upsert([
             'object_type'           => self::PRODUCT_OBJECT_TYPE,
@@ -2225,7 +2607,7 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remoteProduct),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => $this->sanitize_error_message($message),
+            'last_error_message'    => $scopedMessage,
         ]);
     }
 
@@ -2240,6 +2622,7 @@ final class Sync_Runner
         $slug = sanitize_title((string) ($remotePage['slug'] ?? ''));
         $mapping = $this->mapRepository->find_by_remote(self::PAGE_OBJECT_TYPE, $remoteId);
         $localPost = $this->resolve_local_page($mapping, $slug);
+        $scopedMessage = $this->build_object_scoped_error_message(self::PAGE_OBJECT_TYPE, $remoteId, $slug, $message);
 
         $this->mapRepository->upsert([
             'object_type'           => self::PAGE_OBJECT_TYPE,
@@ -2249,8 +2632,54 @@ final class Sync_Runner
             'remote_modified_gmt'   => $this->extract_remote_modified_gmt($remotePage),
             'payload_hash'          => '',
             'last_operation_status' => 'error',
-            'last_error_message'    => $this->sanitize_error_message($message),
+            'last_error_message'    => $scopedMessage,
         ]);
+    }
+
+    private function build_object_issue(string $objectType, array $remoteObject, string $message): array
+    {
+        $remoteId = (int) ($remoteObject['id'] ?? 0);
+        $slug = sanitize_title((string) ($remoteObject['slug'] ?? ''));
+
+        return [
+            'object_type' => $objectType,
+            'remote_id'   => $remoteId,
+            'remote_slug' => $slug,
+            'message'     => $this->sanitize_error_message($message),
+        ];
+    }
+
+    private function append_object_issue(array &$issues, array $issue): void
+    {
+        if (count($issues) >= self::MAX_CONTEXT_ISSUES) {
+            return;
+        }
+
+        $issues[] = $issue;
+    }
+
+    private function build_object_scoped_error_message(string $objectType, int $remoteId, string $slug, string $message): string
+    {
+        $sanitizedMessage = $this->sanitize_error_message($message);
+        $safeSlug = sanitize_title($slug);
+
+        return sprintf(
+            'Object sync error [%s id=%d slug=%s]: %s',
+            sanitize_key($objectType),
+            $remoteId,
+            $safeSlug !== '' ? $safeSlug : '-',
+            $sanitizedMessage
+        );
+    }
+
+    private function is_storage_quota_error(string $message): bool
+    {
+        $lower = strtolower($message);
+
+        return strpos($lower, 'quota exceeded') !== false
+            || strpos($lower, 'errno=122') !== false
+            || strpos($lower, 'no space left') !== false
+            || strpos($lower, 'disk quota exceeded') !== false;
     }
 
     private function sanitize_error_message(string $message): string

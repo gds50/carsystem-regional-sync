@@ -95,3 +95,5 @@ make package
   - синхронизация product featured image + gallery из remote `images`;
   - локализация media URL в page content (`img/video/source`);
   - диагностика отсутствующего VideoPack с явной подсказкой в логах (`Install and activate ...`).
+- `Run sync now` выполняется через background queue (single cron event), чтобы уменьшить риск `504` на `admin-post.php`.
+- для media sync добавлена опция `Local media copy` (same hosting/account) с fallback на HTTP.

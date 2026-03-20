@@ -20,6 +20,7 @@ define('CRS_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CRS_SYNC_OPTION_KEY', 'crs_sync_settings');
 define('CRS_SYNC_LOCK_KEY', 'crs_sync_lock');
 define('CRS_SYNC_CRON_HOOK', 'crs_sync_daily_event');
+define('CRS_SYNC_MANUAL_CRON_HOOK', 'crs_sync_manual_event');
 
 require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-loader.php';
 

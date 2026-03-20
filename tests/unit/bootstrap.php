@@ -4,6 +4,10 @@ if (! defined('ABSPATH')) {
     define('ABSPATH', __DIR__ . '/../../');
 }
 
+if (! defined('CRS_SYNC_OPTION_KEY')) {
+    define('CRS_SYNC_OPTION_KEY', 'crs_sync_settings');
+}
+
 if (! function_exists('sanitize_text_field')) {
     function sanitize_text_field($value): string
     {

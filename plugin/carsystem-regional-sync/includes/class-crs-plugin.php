@@ -27,6 +27,7 @@ final class Plugin
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_menu', [$this, 'register_admin']);
         add_action(CRS_SYNC_CRON_HOOK, [$this, 'handle_cron_sync']);
+        add_action(CRS_SYNC_MANUAL_CRON_HOOK, [$this, 'handle_manual_sync_event']);
         add_action('update_option_' . CRS_SYNC_OPTION_KEY, [$this, 'handle_settings_updated'], 10, 2);
         add_action('admin_post_crs_test_connection', [$this, 'handle_test_connection']);
         add_action('admin_post_crs_run_primary_regionalization', [$this, 'handle_primary_regionalization']);
@@ -112,15 +113,53 @@ final class Plugin
     public function handle_run_sync_now(): void
     {
         Security::assert_admin_action('crs_run_sync_now');
-        Sync_Runner::make()->run_sync('manual');
+        Sync_Runner::cleanup_stale_state();
 
-        wp_safe_redirect(Admin_Page::page_url(['tab' => 'sync']));
+        $syncQueued = '1';
+        $syncAutoPoll = '1';
+        $lock = new Lock();
+
+        if ($lock->is_active()) {
+            $syncQueued = 'active';
+        } elseif (wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK) !== false) {
+            $syncQueued = 'already';
+        } else {
+            $scheduled = wp_schedule_single_event(time() + 5, CRS_SYNC_MANUAL_CRON_HOOK, []);
+
+            if ($scheduled === false || is_wp_error($scheduled)) {
+                $syncQueued = 'error';
+            } elseif (function_exists('spawn_cron')) {
+                spawn_cron();
+            } else {
+                wp_remote_post(site_url('wp-cron.php?doing_wp_cron=' . rawurlencode((string) microtime(true))), [
+                    'timeout'  => 0.01,
+                    'blocking' => false,
+                    'sslverify'=> apply_filters('https_local_ssl_verify', false),
+                ]);
+            }
+        }
+
+        if ($syncQueued === 'error') {
+            $syncAutoPoll = '0';
+        }
+
+        wp_safe_redirect(Admin_Page::page_url([
+            'tab' => 'sync',
+            'sync_queued' => $syncQueued,
+            'sync_autopoll' => $syncAutoPoll,
+            'sync_req_ts' => (string) time(),
+        ]));
         exit;
     }
 
     public function handle_cron_sync(): void
     {
         Sync_Runner::make()->run_sync('cron');
+    }
+
+    public function handle_manual_sync_event(): void
+    {
+        Sync_Runner::make()->run_sync('manual');
     }
 
     /**
@@ -154,4 +193,5 @@ final class Plugin
 
         return substr($sanitized, 0, 500);
     }
+
 }

@@ -49,6 +49,8 @@ if (! isset($tabs[$activeTab])) {
             $sourceUrl = (string) ($connectionSettings['source_url'] ?? '');
             $apiUsername = (string) ($connectionSettings['api_username'] ?? '');
             $hasPassword = (string) ($connectionSettings['api_application_password'] ?? '') !== '';
+            $useLocalMediaCopy = ! empty($connectionSettings['use_local_media_copy']);
+            $sourceLocalBasePath = (string) ($connectionSettings['source_local_base_path'] ?? '');
             ?>
 
             <?php if ($testStatus !== '' && $testMessage !== '') : ?>
@@ -85,6 +87,22 @@ if (! isset($tabs[$activeTab])) {
                         <td>
                             <input id="crs-api-password" type="password" class="regular-text" name="crs_sync_settings[api_application_password]" value="<?php echo esc_attr($hasPassword ? '********' : ''); ?>" autocomplete="new-password">
                             <p class="description"><?php echo esc_html__('Leave as ******** to keep current password. Enter a new value to replace it.', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__('Local media copy mode', 'carsystem-regional-sync'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="crs_sync_settings[use_local_media_copy]" value="1" <?php checked($useLocalMediaCopy); ?>>
+                                <?php echo esc_html__('Use local filesystem copy first (same hosting account), then fallback to HTTP.', 'carsystem-regional-sync'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-source-local-base-path"><?php echo esc_html__('Source local base path (optional)', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <input id="crs-source-local-base-path" type="text" class="regular-text code" name="crs_sync_settings[source_local_base_path]" value="<?php echo esc_attr($sourceLocalBasePath); ?>" placeholder="/home/g/.../carsystem.su/public_html">
+                            <p class="description"><?php echo esc_html__('If empty, plugin tries to infer source path from current ABSPATH and Source URL host.', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                 </table>
@@ -217,6 +235,27 @@ if (! isset($tabs[$activeTab])) {
             $syncTime = (string) ($syncSettings['sync_time'] ?? '02:30');
             $nextRunTimestamp = (new \CRS\Cron_Scheduler())->next_run_timestamp();
             $nextRunUtc = $nextRunTimestamp !== null ? gmdate('Y-m-d H:i:s', $nextRunTimestamp) : '';
+            $syncQueuedState = isset($_GET['sync_queued']) ? sanitize_key((string) $_GET['sync_queued']) : '';
+            $syncAutoPollEnabled = isset($_GET['sync_autopoll']) && sanitize_key((string) $_GET['sync_autopoll']) === '1';
+            $syncRequestedTs = isset($_GET['sync_req_ts']) ? (int) $_GET['sync_req_ts'] : 0;
+            $syncPollTry = isset($_GET['sync_poll_try']) ? (int) $_GET['sync_poll_try'] : 0;
+            $latestSyncStatus = is_array($latestFullSyncLog) ? (string) ($latestFullSyncLog['status'] ?? '') : '';
+            $latestSyncStartedRaw = is_array($latestFullSyncLog) ? (string) ($latestFullSyncLog['started_at'] ?? '') : '';
+            $latestSyncStartedTs = $latestSyncStartedRaw !== '' ? (int) strtotime($latestSyncStartedRaw) : 0;
+            $syncPollState = 'idle';
+            $isRunningQueuedState = $syncQueuedState === 'active';
+
+            if ($isRunningQueuedState && $latestSyncStatus === 'running') {
+                $syncPollState = 'running';
+            } elseif ($syncAutoPollEnabled && $syncRequestedTs > 0) {
+                if ($latestSyncStartedTs <= 0 || $latestSyncStartedTs < $syncRequestedTs) {
+                    $syncPollState = 'pending';
+                } elseif ($latestSyncStatus === 'running') {
+                    $syncPollState = 'running';
+                } else {
+                    $syncPollState = 'done';
+                }
+            }
 
             if ($latestPrimaryId > 0 || $latestSyncId > 0) {
                 $lastActionLabel = $latestSyncId >= $latestPrimaryId
@@ -226,6 +265,38 @@ if (! isset($tabs[$activeTab])) {
             ?>
 
             <?php settings_errors('crs_sync_settings_group'); ?>
+
+            <?php if ($syncQueuedState === '1') : ?>
+                <div class="notice notice-success" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Sync queued in background. Page response is immediate to avoid gateway timeout.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
+            <?php elseif ($syncQueuedState === 'already') : ?>
+                <div class="notice notice-warning" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Manual sync is already queued. Wait for it to start/finish and refresh status.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
+            <?php elseif ($syncQueuedState === 'active') : ?>
+                <div class="notice notice-info" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Sync is already running. New run was not queued to avoid lock skip loops.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
+            <?php elseif ($syncQueuedState === 'error') : ?>
+                <div class="notice notice-error" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Failed to queue background sync. Check cron configuration and logs.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($syncPollState === 'pending' || $syncPollState === 'running') : ?>
+                <div id="crs-sync-autopoll-notice" class="notice notice-info" style="margin: 0 0 16px 0;">
+                    <p id="crs-sync-autopoll-text">
+                        <strong><?php echo esc_html($syncPollState === 'pending'
+                                ? 'Sync is queued. Waiting for start...'
+                                : 'Sync is running. Waiting for completion...'); ?></strong>
+                    </p>
+                </div>
+            <?php elseif ($syncPollState === 'done') : ?>
+                <div class="notice notice-success" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Sync completed. Full sync status was refreshed automatically.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
+            <?php endif; ?>
 
             <div class="notice notice-info" style="margin: 0 0 16px 0;">
                 <p>
@@ -254,6 +325,8 @@ if (! isset($tabs[$activeTab])) {
                 <input type="hidden" name="crs_sync_settings[partner_phone]" value="<?php echo esc_attr((string) ($syncSettings['partner_phone'] ?? '')); ?>">
                 <input type="hidden" name="crs_sync_settings[partner_email]" value="<?php echo esc_attr((string) ($syncSettings['partner_email'] ?? '')); ?>">
                 <input type="hidden" name="crs_sync_settings[partner_address]" value="<?php echo esc_attr((string) ($syncSettings['partner_address'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[use_local_media_copy]" value="<?php echo ! empty($syncSettings['use_local_media_copy']) ? '1' : '0'; ?>">
+                <input type="hidden" name="crs_sync_settings[source_local_base_path]" value="<?php echo esc_attr((string) ($syncSettings['source_local_base_path'] ?? '')); ?>">
                 <?php foreach ((array) ($syncSettings['excluded_slugs'] ?? []) as $excludedSlug) : ?>
                     <input type="hidden" name="crs_sync_settings[excluded_slugs][]" value="<?php echo esc_attr((string) $excludedSlug); ?>">
                 <?php endforeach; ?>
@@ -346,6 +419,34 @@ if (! isset($tabs[$activeTab])) {
                     <?php if ($runStarted !== '' || $runFinished !== '') : ?>
                         <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $runStarted, $runFinished)); ?></p>
                     <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (($syncPollState === 'pending' || $syncPollState === 'running') && $syncPollTry < 40) : ?>
+                <?php
+                $nextPollUrl = add_query_arg([
+                    'page' => 'crs-sync',
+                    'tab' => 'sync',
+                    'sync_autopoll' => '1',
+                    'sync_queued' => $syncQueuedState,
+                    'sync_req_ts' => (string) $syncRequestedTs,
+                    'sync_poll_try' => (string) ($syncPollTry + 1),
+                ], admin_url('admin.php'));
+                ?>
+                <script>
+                    (function() {
+                        var textNode = document.getElementById('crs-sync-autopoll-text');
+                        if (textNode) {
+                            textNode.textContent = 'Auto-check in progress... attempt <?php echo (int) ($syncPollTry + 1); ?> of 40.';
+                        }
+                        window.setTimeout(function() {
+                            window.location.href = <?php echo wp_json_encode($nextPollUrl); ?>;
+                        }, 8000);
+                    })();
+                </script>
+            <?php elseif (($syncPollState === 'pending' || $syncPollState === 'running') && $syncPollTry >= 40) : ?>
+                <div class="notice notice-warning" style="margin: 16px 0 0 0;">
+                    <p><strong><?php echo esc_html__('Auto-check timeout reached. Please refresh manually.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php endif; ?>
         <?php elseif ($activeTab === 'logs') : ?>

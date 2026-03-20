@@ -50,8 +50,6 @@ final class Media_Map_Repository
             return;
         }
 
-        $existing = $this->find_by_remote_url($objectType, $objectRemoteId, $remoteMediaUrl);
-
         $payload = [
             'object_type'           => $objectType,
             'object_remote_id'      => $objectRemoteId,
@@ -63,14 +61,32 @@ final class Media_Map_Repository
             'last_error_message'    => $data['last_error_message'] ?? null,
             'updated_at'            => current_time('mysql', true),
         ];
-
-        if ($existing) {
-            $wpdb->update($this->table(), $payload, ['id' => (int) $existing['id']]);
-            return;
-        }
-
         $payload['created_at'] = current_time('mysql', true);
-        $wpdb->insert($this->table(), $payload);
+
+        $sql = $wpdb->prepare(
+            "INSERT INTO {$this->table()}
+            (object_type, object_remote_id, remote_media_url, local_attachment_id, remote_media_hash, last_synced_at, last_operation_status, last_error_message, created_at, updated_at)
+            VALUES (%s, %d, %s, %d, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                remote_media_url = VALUES(remote_media_url),
+                local_attachment_id = VALUES(local_attachment_id),
+                last_synced_at = VALUES(last_synced_at),
+                last_operation_status = VALUES(last_operation_status),
+                last_error_message = VALUES(last_error_message),
+                updated_at = VALUES(updated_at)",
+            $payload['object_type'],
+            $payload['object_remote_id'],
+            $payload['remote_media_url'],
+            $payload['local_attachment_id'],
+            $payload['remote_media_hash'],
+            $payload['last_synced_at'],
+            $payload['last_operation_status'],
+            $payload['last_error_message'],
+            $payload['created_at'],
+            $payload['updated_at']
+        );
+
+        $wpdb->query($sql);
     }
 
     private function table_exists(): bool
