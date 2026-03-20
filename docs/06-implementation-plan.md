@@ -130,6 +130,10 @@
 - отдельные статус-блоки на вкладке `Sync` для full sync и primary regionalization;
 - индикатор `Latest action` по последней записи в логах;
 - операционный блок с `Auto sync`, `Sync time`, `Next scheduled run (UTC)`;
+- health-блок в `Sync`:
+  - `Cron mode`,
+  - `Lock` (status/run_type/age),
+  - `Manual queue` state;
 - lock.
 - ограничение `per_page` и безопасный обход всей пагинации;
 - ограниченный retry для 429/5xx с backoff;

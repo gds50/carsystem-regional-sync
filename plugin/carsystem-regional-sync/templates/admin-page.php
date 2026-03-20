@@ -235,6 +235,26 @@ if (! isset($tabs[$activeTab])) {
             $syncTime = (string) ($syncSettings['sync_time'] ?? '02:30');
             $nextRunTimestamp = (new \CRS\Cron_Scheduler())->next_run_timestamp();
             $nextRunUtc = $nextRunTimestamp !== null ? gmdate('Y-m-d H:i:s', $nextRunTimestamp) : '';
+            $isSystemCronMode = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
+            $cronModeLabel = $isSystemCronMode ? 'system cron' : 'traffic-triggered WP-Cron';
+            $lockState = get_option(CRS_SYNC_LOCK_KEY, []);
+            $lockActive = (new \CRS\Lock())->is_active();
+            $lockRunType = '';
+            $lockAgeSeconds = null;
+            if (is_array($lockState)) {
+                $lockRunType = sanitize_key((string) ($lockState['run_type'] ?? ''));
+                $lockAtRaw = (string) ($lockState['locked_at'] ?? '');
+                $lockAtTs = $lockAtRaw !== '' ? strtotime($lockAtRaw) : false;
+                if ($lockAtTs !== false) {
+                    $lockAgeSeconds = max(0, time() - $lockAtTs);
+                }
+            }
+            $manualEventTs = wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK);
+            $manualEventUtc = $manualEventTs !== false ? gmdate('Y-m-d H:i:s', (int) $manualEventTs) : '';
+            $schedulerCommand = sprintf(
+                'cd %s && wp --allow-root cron event run --due-now',
+                rtrim((string) ABSPATH, '/')
+            );
             $syncQueuedState = isset($_GET['sync_queued']) ? sanitize_key((string) $_GET['sync_queued']) : '';
             $syncAutoPollEnabled = isset($_GET['sync_autopoll']) && sanitize_key((string) $_GET['sync_autopoll']) === '1';
             $syncRequestedTs = isset($_GET['sync_req_ts']) ? (int) $_GET['sync_req_ts'] : 0;
@@ -309,6 +329,34 @@ if (! isset($tabs[$activeTab])) {
                     <strong><?php echo esc_html__('Next scheduled run (UTC):', 'carsystem-regional-sync'); ?></strong>
                     <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('not scheduled', 'carsystem-regional-sync')); ?>
                 </p>
+            </div>
+
+            <div class="notice notice-info" style="margin: 0 0 16px 0;">
+                <p>
+                    <strong><?php echo esc_html__('Cron mode:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($cronModeLabel); ?>
+                    |
+                    <strong><?php echo esc_html__('Lock:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($lockActive ? 'active' : 'idle'); ?>
+                    <?php if ($lockRunType !== '') : ?>
+                        <?php echo esc_html(sprintf('(%s)', $lockRunType)); ?>
+                    <?php endif; ?>
+                    <?php if (is_int($lockAgeSeconds)) : ?>
+                        <?php echo esc_html(sprintf('| age: %ds', $lockAgeSeconds)); ?>
+                    <?php endif; ?>
+                    |
+                    <strong><?php echo esc_html__('Manual queue:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($manualEventUtc !== '' ? 'queued @ ' . $manualEventUtc . ' UTC' : 'empty'); ?>
+                </p>
+                <?php if (! $isSystemCronMode) : ?>
+                    <p style="margin-top: 6px;">
+                        <?php echo esc_html__('For Beget system scheduler use command:', 'carsystem-regional-sync'); ?>
+                        <code><?php echo esc_html($schedulerCommand); ?></code>
+                    </p>
+                    <p style="margin-top: 4px;">
+                        <?php echo esc_html__('Then set DISABLE_WP_CRON=true in wp-config.php after scheduler is active.', 'carsystem-regional-sync'); ?>
+                    </p>
+                <?php endif; ?>
             </div>
 
             <h2><?php echo esc_html__('Schedule settings', 'carsystem-regional-sync'); ?></h2>

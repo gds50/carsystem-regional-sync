@@ -83,6 +83,11 @@ make package
   - `Enable auto sync`,
   - `Sync time`,
   - `Next scheduled run (UTC)`.
+- в `Sync`-вкладке есть health-блок:
+  - `Cron mode` (`traffic-triggered WP-Cron` / `system cron`),
+  - `Lock` (status/run type/age),
+  - `Manual queue` (queued timestamp или empty),
+  - подсказка команды для Beget scheduler (`wp cron event run --due-now`).
 - на вкладке `Connection` есть рабочая форма:
   - `Source URL`,
   - `API username`,

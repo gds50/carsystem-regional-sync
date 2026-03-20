@@ -118,6 +118,7 @@
 - для full sync и primary regionalization отображаются отдельные статус-блоки на вкладке `Sync`
 - индикатор `Latest action` показывает фактически последнее действие по максимальному `log id`
 - блок расписания на вкладке `Sync` показывает `Auto sync`, `Sync time`, `Next scheduled run (UTC)`
+- health-блок на вкладке `Sync` показывает `Cron mode`, `Lock` (status/run type/age), `Manual queue`
 - `Run sync now` возвращает пользователя сразу (без долгого ожидания/504) и ставит full sync в background queue.
 
 ## 10. PHP compatibility tests
