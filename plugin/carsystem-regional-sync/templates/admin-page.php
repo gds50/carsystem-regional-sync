@@ -99,11 +99,95 @@ if (! isset($tabs[$activeTab])) {
                 <?php submit_button(__('Test connection', 'carsystem-regional-sync')); ?>
             </form>
         <?php elseif ($activeTab === 'region') : ?>
-            <p><?php echo esc_html__('Region settings UI shell is ready. Fields will be added in next milestones.', 'carsystem-regional-sync'); ?></p>
+            <?php
+            $regionSettings = \CRS\Settings::get();
+            $regionValue = (string) ($regionSettings['region'] ?? '');
+            $cityValue = (string) ($regionSettings['city'] ?? '');
+            $areaValue = (string) ($regionSettings['area'] ?? '');
+            $dictionaryValue = (string) ($regionSettings['replacement_dictionary'] ?? '');
+            ?>
+            <?php settings_errors('crs_sync_settings_group'); ?>
+            <h2><?php echo esc_html__('Region settings', 'carsystem-regional-sync'); ?></h2>
+            <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
+                <?php settings_fields('crs_sync_settings_group'); ?>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="crs-region"><?php echo esc_html__('Region', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-region" type="text" class="regular-text" name="crs_sync_settings[region]" value="<?php echo esc_attr($regionValue); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-city"><?php echo esc_html__('City', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-city" type="text" class="regular-text" name="crs_sync_settings[city]" value="<?php echo esc_attr($cityValue); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-area"><?php echo esc_html__('Area', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-area" type="text" class="regular-text" name="crs_sync_settings[area]" value="<?php echo esc_attr($areaValue); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-dictionary"><?php echo esc_html__('Replacement dictionary', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <textarea id="crs-dictionary" class="large-text code" name="crs_sync_settings[replacement_dictionary]" rows="10"><?php echo esc_textarea($dictionaryValue); ?></textarea>
+                            <p class="description"><?php echo esc_html__('One rule per line: from => to', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button(__('Save region settings', 'carsystem-regional-sync')); ?>
+            </form>
         <?php elseif ($activeTab === 'partner') : ?>
-            <p><?php echo esc_html__('Partner tab shell is ready.', 'carsystem-regional-sync'); ?></p>
+            <?php
+            $partnerSettings = \CRS\Settings::get();
+            $partnerName = (string) ($partnerSettings['partner_name'] ?? '');
+            $partnerPhone = (string) ($partnerSettings['partner_phone'] ?? '');
+            $partnerEmail = (string) ($partnerSettings['partner_email'] ?? '');
+            $partnerAddress = (string) ($partnerSettings['partner_address'] ?? '');
+            ?>
+            <?php settings_errors('crs_sync_settings_group'); ?>
+            <h2><?php echo esc_html__('Partner settings', 'carsystem-regional-sync'); ?></h2>
+            <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
+                <?php settings_fields('crs_sync_settings_group'); ?>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="crs-partner-name"><?php echo esc_html__('Partner name', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-partner-name" type="text" class="regular-text" name="crs_sync_settings[partner_name]" value="<?php echo esc_attr($partnerName); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-partner-phone"><?php echo esc_html__('Partner phone', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-partner-phone" type="text" class="regular-text" name="crs_sync_settings[partner_phone]" value="<?php echo esc_attr($partnerPhone); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-partner-email"><?php echo esc_html__('Partner email', 'carsystem-regional-sync'); ?></label></th>
+                        <td><input id="crs-partner-email" type="email" class="regular-text" name="crs_sync_settings[partner_email]" value="<?php echo esc_attr($partnerEmail); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-partner-address"><?php echo esc_html__('Partner address', 'carsystem-regional-sync'); ?></label></th>
+                        <td><textarea id="crs-partner-address" class="large-text" name="crs_sync_settings[partner_address]" rows="4"><?php echo esc_textarea($partnerAddress); ?></textarea></td>
+                    </tr>
+                </table>
+                <?php submit_button(__('Save partner settings', 'carsystem-regional-sync')); ?>
+            </form>
         <?php elseif ($activeTab === 'exclusions') : ?>
-            <p><?php echo esc_html__('Exclusions tab shell is ready.', 'carsystem-regional-sync'); ?></p>
+            <?php
+            $exclusionSettings = \CRS\Settings::get();
+            $excludedSlugs = (array) ($exclusionSettings['excluded_slugs'] ?? []);
+            $excludedText = implode("\n", array_map(static function ($slug) {
+                return (string) $slug;
+            }, $excludedSlugs));
+            ?>
+            <?php settings_errors('crs_sync_settings_group'); ?>
+            <h2><?php echo esc_html__('Excluded slugs', 'carsystem-regional-sync'); ?></h2>
+            <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
+                <?php settings_fields('crs_sync_settings_group'); ?>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="crs-excluded-slugs"><?php echo esc_html__('Slugs (one per line)', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <textarea id="crs-excluded-slugs" class="large-text code" name="crs_sync_settings[excluded_slugs]" rows="10"><?php echo esc_textarea($excludedText); ?></textarea>
+                            <p class="description"><?php echo esc_html__('Excluded slugs are skipped in sync and primary regionalization.', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button(__('Save exclusions', 'carsystem-regional-sync')); ?>
+            </form>
         <?php elseif ($activeTab === 'sync') : ?>
             <?php
             $latestPrimaryLog = null;
