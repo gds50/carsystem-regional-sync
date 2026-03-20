@@ -61,20 +61,22 @@ final class Settings
         $current = self::get();
 
         $settings = [
-            'source_url'               => esc_url_raw($input['source_url'] ?? $defaults['source_url']),
-            'api_username'             => sanitize_user($input['api_username'] ?? ''),
-            'api_application_password' => self::sanitize_password($input['api_application_password'] ?? '', $current['api_application_password'] ?? ''),
-            'region'                   => sanitize_text_field($input['region'] ?? ''),
-            'city'                     => sanitize_text_field($input['city'] ?? ''),
-            'area'                     => sanitize_text_field($input['area'] ?? ''),
-            'replacement_dictionary'   => self::sanitize_dictionary($input['replacement_dictionary'] ?? ''),
-            'partner_name'             => sanitize_text_field($input['partner_name'] ?? ''),
-            'partner_phone'            => sanitize_text_field($input['partner_phone'] ?? ''),
-            'partner_email'            => sanitize_email($input['partner_email'] ?? ''),
-            'partner_address'          => sanitize_textarea_field($input['partner_address'] ?? ''),
-            'excluded_slugs'           => self::sanitize_excluded_slugs($input['excluded_slugs'] ?? []),
-            'auto_sync_enabled'        => empty($input['auto_sync_enabled']) ? 0 : 1,
-            'sync_time'                => self::sanitize_time($input['sync_time'] ?? $defaults['sync_time']),
+            'source_url'               => esc_url_raw(array_key_exists('source_url', $input) ? $input['source_url'] : ($current['source_url'] ?? $defaults['source_url'])),
+            'api_username'             => sanitize_user(array_key_exists('api_username', $input) ? $input['api_username'] : ($current['api_username'] ?? '')),
+            'api_application_password' => self::sanitize_password(array_key_exists('api_application_password', $input) ? (string) $input['api_application_password'] : '', (string) ($current['api_application_password'] ?? '')),
+            'region'                   => sanitize_text_field(array_key_exists('region', $input) ? $input['region'] : ($current['region'] ?? '')),
+            'city'                     => sanitize_text_field(array_key_exists('city', $input) ? $input['city'] : ($current['city'] ?? '')),
+            'area'                     => sanitize_text_field(array_key_exists('area', $input) ? $input['area'] : ($current['area'] ?? '')),
+            'replacement_dictionary'   => self::sanitize_dictionary((string) (array_key_exists('replacement_dictionary', $input) ? $input['replacement_dictionary'] : ($current['replacement_dictionary'] ?? ''))),
+            'partner_name'             => sanitize_text_field(array_key_exists('partner_name', $input) ? $input['partner_name'] : ($current['partner_name'] ?? '')),
+            'partner_phone'            => sanitize_text_field(array_key_exists('partner_phone', $input) ? $input['partner_phone'] : ($current['partner_phone'] ?? '')),
+            'partner_email'            => sanitize_email(array_key_exists('partner_email', $input) ? $input['partner_email'] : ($current['partner_email'] ?? '')),
+            'partner_address'          => sanitize_textarea_field((string) (array_key_exists('partner_address', $input) ? $input['partner_address'] : ($current['partner_address'] ?? ''))),
+            'excluded_slugs'           => self::sanitize_excluded_slugs(array_key_exists('excluded_slugs', $input) ? $input['excluded_slugs'] : ($current['excluded_slugs'] ?? [])),
+            'auto_sync_enabled'        => array_key_exists('auto_sync_enabled', $input)
+                ? (empty($input['auto_sync_enabled']) ? 0 : 1)
+                : (int) ($current['auto_sync_enabled'] ?? $defaults['auto_sync_enabled']),
+            'sync_time'                => self::sanitize_time((string) (array_key_exists('sync_time', $input) ? $input['sync_time'] : ($current['sync_time'] ?? $defaults['sync_time']))),
         ];
 
         return $settings;

@@ -105,6 +105,8 @@ if (! isset($tabs[$activeTab])) {
             }
             ?>
 
+            <?php settings_errors('crs_sync_settings_group'); ?>
+
             <div class="notice notice-info" style="margin: 0 0 16px 0;">
                 <p>
                     <strong><?php echo esc_html__('Auto sync:', 'carsystem-regional-sync'); ?></strong>
@@ -117,6 +119,46 @@ if (! isset($tabs[$activeTab])) {
                     <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('not scheduled', 'carsystem-regional-sync')); ?>
                 </p>
             </div>
+
+            <h2><?php echo esc_html__('Schedule settings', 'carsystem-regional-sync'); ?></h2>
+            <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>" style="margin-bottom: 16px;">
+                <?php settings_fields('crs_sync_settings_group'); ?>
+                <input type="hidden" name="crs_sync_settings[source_url]" value="<?php echo esc_attr((string) ($syncSettings['source_url'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[api_username]" value="<?php echo esc_attr((string) ($syncSettings['api_username'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[api_application_password]" value="********">
+                <input type="hidden" name="crs_sync_settings[region]" value="<?php echo esc_attr((string) ($syncSettings['region'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[city]" value="<?php echo esc_attr((string) ($syncSettings['city'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[area]" value="<?php echo esc_attr((string) ($syncSettings['area'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[replacement_dictionary]" value="<?php echo esc_attr((string) ($syncSettings['replacement_dictionary'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[partner_name]" value="<?php echo esc_attr((string) ($syncSettings['partner_name'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[partner_phone]" value="<?php echo esc_attr((string) ($syncSettings['partner_phone'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[partner_email]" value="<?php echo esc_attr((string) ($syncSettings['partner_email'] ?? '')); ?>">
+                <input type="hidden" name="crs_sync_settings[partner_address]" value="<?php echo esc_attr((string) ($syncSettings['partner_address'] ?? '')); ?>">
+                <?php foreach ((array) ($syncSettings['excluded_slugs'] ?? []) as $excludedSlug) : ?>
+                    <input type="hidden" name="crs_sync_settings[excluded_slugs][]" value="<?php echo esc_attr((string) $excludedSlug); ?>">
+                <?php endforeach; ?>
+
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__('Enable auto sync', 'carsystem-regional-sync'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="crs_sync_settings[auto_sync_enabled]" value="1" <?php checked($autoSyncEnabled); ?>>
+                                <?php echo esc_html__('Run daily scheduled sync', 'carsystem-regional-sync'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-sync-time"><?php echo esc_html__('Sync time', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <input id="crs-sync-time" type="time" name="crs_sync_settings[sync_time]" value="<?php echo esc_attr($syncTime); ?>" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                            <p class="description"><?php echo esc_html__('Time is interpreted in site timezone. Next run is shown in UTC above.', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <?php submit_button(__('Save schedule', 'carsystem-regional-sync')); ?>
+            </form>
 
             <p><?php echo esc_html__('Run full sync now (categories, products, pages).', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
