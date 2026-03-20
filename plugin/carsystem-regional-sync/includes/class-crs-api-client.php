@@ -8,8 +8,12 @@ if (! defined('ABSPATH')) {
 
 final class Api_Client
 {
-    public function __construct(private array $settings)
+    /** @var array */
+    private $settings;
+
+    public function __construct(array $settings)
     {
+        $this->settings = $settings;
     }
 
     public function test_connection(): array

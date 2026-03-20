@@ -5,7 +5,7 @@
  * Version: 0.1.0
  * Author: OpenAI
  * Requires at least: 6.9
- * Requires PHP: 8.1
+ * Requires PHP: 7.4
  * Text Domain: carsystem-regional-sync
  */
 

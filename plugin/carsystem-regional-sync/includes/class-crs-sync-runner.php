@@ -8,14 +8,21 @@ if (! defined('ABSPATH')) {
 
 final class Sync_Runner
 {
+    private Api_Client $client;
+    private Logger $logger;
+    private ?Regionalizer $regionalizer;
+    private ?Lock $lock;
+
     public function __construct(
-        private Api_Client $client,
-        private Logger $logger,
-        private ?Regionalizer $regionalizer = null,
-        private ?Lock $lock = null,
+        Api_Client $client,
+        Logger $logger,
+        ?Regionalizer $regionalizer = null,
+        ?Lock $lock = null
     ) {
-        $this->regionalizer = $this->regionalizer ?? new Regionalizer();
-        $this->lock = $this->lock ?? new Lock();
+        $this->client = $client;
+        $this->logger = $logger;
+        $this->regionalizer = $regionalizer ?? new Regionalizer();
+        $this->lock = $lock ?? new Lock();
     }
 
     public static function make(): self

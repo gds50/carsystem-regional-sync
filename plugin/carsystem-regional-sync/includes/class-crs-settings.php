@@ -87,7 +87,7 @@ final class Settings
         $validLines = [];
 
         foreach ($lines as $line) {
-            if (! str_contains($line, '=>')) {
+            if (strpos($line, '=>') === false) {
                 continue;
             }
 

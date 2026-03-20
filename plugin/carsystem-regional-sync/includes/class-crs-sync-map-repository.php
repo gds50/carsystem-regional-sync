@@ -18,6 +18,10 @@ final class Sync_Map_Repository
     {
         global $wpdb;
 
+        if (! $this->table_exists()) {
+            return null;
+        }
+
         $sql = $wpdb->prepare(
             "SELECT * FROM {$this->table()} WHERE object_type = %s AND remote_id = %d LIMIT 1",
             $objectType,
@@ -32,6 +36,10 @@ final class Sync_Map_Repository
     public function upsert(array $data): void
     {
         global $wpdb;
+
+        if (! $this->table_exists()) {
+            return;
+        }
 
         $existing = $this->find_by_remote((string) $data['object_type'], (int) $data['remote_id']);
 
@@ -55,5 +63,15 @@ final class Sync_Map_Repository
 
         $payload['created_at'] = current_time('mysql', true);
         $wpdb->insert($this->table(), $payload);
+    }
+
+    private function table_exists(): bool
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare('SHOW TABLES LIKE %s', $this->table());
+        $exists = $wpdb->get_var($sql);
+
+        return is_string($exists) && $exists !== '';
     }
 }

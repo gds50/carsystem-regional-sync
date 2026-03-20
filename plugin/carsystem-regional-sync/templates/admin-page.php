@@ -101,7 +101,44 @@ if (! isset($tabs[$activeTab])) {
                 </div>
             <?php endif; ?>
         <?php elseif ($activeTab === 'logs') : ?>
-            <p><?php echo esc_html__('Logs screen shell is ready. Log storage integration will be added later.', 'carsystem-regional-sync'); ?></p>
+            <?php if ($logs === []) : ?>
+                <p><?php echo esc_html__('No logs yet.', 'carsystem-regional-sync'); ?></p>
+            <?php else : ?>
+                <table class="widefat striped">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html__('ID', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Run type', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Status', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Started (UTC)', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Finished (UTC)', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Checked', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Updated', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Created', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Skipped', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Errors', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Message', 'carsystem-regional-sync'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($logs as $log) : ?>
+                            <tr>
+                                <td><?php echo esc_html((string) ($log['id'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($log['run_type'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($log['status'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($log['started_at'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($log['finished_at'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($log['checked_count'] ?? '0')); ?></td>
+                                <td><?php echo esc_html((string) ($log['updated_count'] ?? '0')); ?></td>
+                                <td><?php echo esc_html((string) ($log['created_count'] ?? '0')); ?></td>
+                                <td><?php echo esc_html((string) ($log['skipped_count'] ?? '0')); ?></td>
+                                <td><?php echo esc_html((string) ($log['error_count'] ?? '0')); ?></td>
+                                <td><?php echo esc_html((string) ($log['message'] ?? '')); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

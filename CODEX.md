@@ -37,8 +37,8 @@ Do not do in MVP:
 - smart NLP replacements
 
 ## Architecture rules
-- PHP 8.1+
-- Test on PHP 8.3
+- Runtime compatibility: PHP 7.4+
+- Recommended test matrix: PHP 7.4, 8.1, 8.3
 - Compatible with WordPress 6.9.x
 - Compatible with WooCommerce 10.6.x
 - No public unsafe endpoints

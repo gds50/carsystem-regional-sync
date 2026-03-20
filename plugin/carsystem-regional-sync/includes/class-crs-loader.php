@@ -26,6 +26,9 @@ final class Loader
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-dictionary.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-regionalizer.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-primary-regionalization-runner.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-sync-map-repository.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-sync-log-repository.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-logger.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-security.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-admin-page.php';
     }

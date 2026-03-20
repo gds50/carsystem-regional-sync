@@ -43,22 +43,39 @@ final class Plugin
         Security::assert_admin_action('crs_test_connection');
 
         $settings = Settings::get();
+        $logger = new Logger();
+        $logId = $logger->start('connection_test');
 
         try {
             $result = $this->perform_connection_test($settings);
             $identity = (string) ($result['slug'] ?? $result['name'] ?? $result['id'] ?? 'unknown');
+            $message = sprintf('Connection successful. Remote user: %s', sanitize_text_field($identity));
 
             update_option(self::CONNECTION_TEST_OPTION_KEY, [
                 'status'    => 'success',
-                'message'   => sprintf('Connection successful. Remote user: %s', sanitize_text_field($identity)),
+                'message'   => $message,
                 'tested_at' => current_time('mysql', true),
             ], false);
+
+            $logger->finish($logId, [
+                'status'        => 'success',
+                'checked_count' => 1,
+                'message'       => $message,
+            ]);
         } catch (\Throwable $e) {
+            $errorMessage = sanitize_text_field($e->getMessage());
+
             update_option(self::CONNECTION_TEST_OPTION_KEY, [
                 'status'    => 'error',
-                'message'   => sanitize_text_field($e->getMessage()),
+                'message'   => $errorMessage,
                 'tested_at' => current_time('mysql', true),
             ], false);
+
+            $logger->finish($logId, [
+                'status'      => 'error',
+                'error_count' => 1,
+                'message'     => $errorMessage,
+            ]);
         }
 
         wp_safe_redirect(Admin_Page::page_url(['tab' => 'connection']));
@@ -69,8 +86,19 @@ final class Plugin
     {
         Security::assert_admin_action('crs_run_primary_regionalization');
 
+        $logger = new Logger();
+        $logId = $logger->start('primary_regionalization');
         $runner = new Primary_Regionalization_Runner(new Regionalizer());
-        $runner->run(Settings::get());
+        $summary = $runner->run(Settings::get());
+
+        $logger->finish($logId, [
+            'status'        => (string) ($summary['status'] ?? 'success'),
+            'checked_count' => (int) ($summary['checked_count'] ?? 0),
+            'updated_count' => (int) ($summary['updated_count'] ?? 0),
+            'skipped_count' => (int) ($summary['skipped_count'] ?? 0),
+            'error_count'   => (int) ($summary['error_count'] ?? 0),
+            'message'       => (string) ($summary['message'] ?? ''),
+        ]);
 
         wp_safe_redirect(Admin_Page::page_url(['tab' => 'sync']));
         exit;
