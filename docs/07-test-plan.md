@@ -108,6 +108,10 @@
 - `Первичная регионализация` работает только по nonce
 - ручной запуск использует тот же lock, что и cron
 - во время активного lock повторный ручной запуск не стартует
+- кнопка `Run sync now` запускает полный путь sync (categories -> products -> pages)
+- для full sync и primary regionalization отображаются отдельные статус-блоки на вкладке `Sync`
+- индикатор `Latest action` показывает фактически последнее действие по максимальному `log id`
+- блок расписания на вкладке `Sync` показывает `Auto sync`, `Sync time`, `Next scheduled run (UTC)`
 
 ## 10. PHP compatibility tests
 

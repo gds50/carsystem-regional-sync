@@ -123,6 +123,11 @@
 - расчёт ближайшего времени запуска;
 - включение / выключение из настроек;
 - ручная кнопка `Запустить сейчас`;
+- ручной запуск из вкладки `Sync` через отдельный action `admin_post_crs_run_sync_now` (nonce + проверки `caradmin`);
+- отдельная кнопка `Primary regionalization` как независимое ручное действие;
+- отдельные статус-блоки на вкладке `Sync` для full sync и primary regionalization;
+- индикатор `Latest action` по последней записи в логах;
+- операционный блок с `Auto sync`, `Sync time`, `Next scheduled run (UTC)`;
 - lock.
 - ограничение `per_page` и безопасный обход всей пагинации;
 - ограниченный retry для 429/5xx с backoff;
