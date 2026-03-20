@@ -12,6 +12,11 @@ final class Regionalizer
     {
         $dictionary = Dictionary::parse((string) ($settings['replacement_dictionary'] ?? ''));
 
+        return $this->regionalize_with_dictionary($value, $dictionary);
+    }
+
+    public function regionalize_with_dictionary(string $value, array $dictionary): string
+    {
         if ($value === '' || $dictionary === []) {
             return $value;
         }
@@ -22,6 +27,7 @@ final class Regionalizer
     public function is_excluded_slug(string $slug, array $settings): bool
     {
         $excluded = array_map('strval', (array) ($settings['excluded_slugs'] ?? []));
-        return in_array($slug, $excluded, true);
+
+        return Dictionary::is_excluded_slug($slug, $excluded);
     }
 }

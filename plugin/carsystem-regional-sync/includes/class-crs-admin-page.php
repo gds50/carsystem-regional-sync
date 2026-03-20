@@ -31,9 +31,14 @@ final class Admin_Page
     {
         Security::assert_admin_access();
         $connectionTest = get_option('crs_sync_last_connection_test', []);
+        $primaryRegionalization = get_option(Primary_Regionalization_Runner::RESULT_OPTION_KEY, []);
 
         if (! is_array($connectionTest)) {
             $connectionTest = [];
+        }
+
+        if (! is_array($primaryRegionalization)) {
+            $primaryRegionalization = [];
         }
 
         require CRS_SYNC_PLUGIN_DIR . '/templates/admin-page.php';

@@ -69,7 +69,37 @@ if (! isset($tabs[$activeTab])) {
         <?php elseif ($activeTab === 'exclusions') : ?>
             <p><?php echo esc_html__('Exclusions tab shell is ready.', 'carsystem-regional-sync'); ?></p>
         <?php elseif ($activeTab === 'sync') : ?>
-            <p><?php echo esc_html__('Manual sync controls will be implemented in later milestones.', 'carsystem-regional-sync'); ?></p>
+            <?php
+            $runStatus = (string) ($primaryRegionalization['status'] ?? '');
+            $runMessage = (string) ($primaryRegionalization['message'] ?? '');
+            $runStarted = (string) ($primaryRegionalization['started_at'] ?? '');
+            $runFinished = (string) ($primaryRegionalization['finished_at'] ?? '');
+            $runChecked = (int) ($primaryRegionalization['checked_count'] ?? 0);
+            $runUpdated = (int) ($primaryRegionalization['updated_count'] ?? 0);
+            $runSkipped = (int) ($primaryRegionalization['skipped_count'] ?? 0);
+            $runErrors = (int) ($primaryRegionalization['error_count'] ?? 0);
+            $runNoticeClass = $runStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
+            ?>
+
+            <p><?php echo esc_html__('Run primary regionalization for local products and categories.', 'carsystem-regional-sync'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="crs_run_primary_regionalization">
+                <?php wp_nonce_field('crs_run_primary_regionalization'); ?>
+                <?php submit_button(__('Primary regionalization', 'carsystem-regional-sync')); ?>
+            </form>
+
+            <?php if ($runStatus !== '') : ?>
+                <div class="<?php echo esc_attr($runNoticeClass); ?>" style="margin: 16px 0 0 0;">
+                    <p><strong><?php echo esc_html(sprintf('Status: %s', $runStatus)); ?></strong></p>
+                    <?php if ($runMessage !== '') : ?>
+                        <p><?php echo esc_html($runMessage); ?></p>
+                    <?php endif; ?>
+                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Skipped: %d | Errors: %d', $runChecked, $runUpdated, $runSkipped, $runErrors)); ?></p>
+                    <?php if ($runStarted !== '' || $runFinished !== '') : ?>
+                        <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $runStarted, $runFinished)); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         <?php elseif ($activeTab === 'logs') : ?>
             <p><?php echo esc_html__('Logs screen shell is ready. Log storage integration will be added later.', 'carsystem-regional-sync'); ?></p>
         <?php endif; ?>
