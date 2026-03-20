@@ -19,7 +19,7 @@ final class Dictionary
             $pairs[$from] = $to;
         }
 
-        uksort($pairs, static fn(string $a, string $b) => mb_strlen($b) <=> mb_strlen($a));
+        uksort($pairs, static fn(string $a, string $b) => self::length($b) <=> self::length($a));
 
         return $pairs;
     }
@@ -33,5 +33,27 @@ final class Dictionary
         }
 
         return $result;
+    }
+
+    public static function is_excluded_slug(string $slug, array $excludedSlugs): bool
+    {
+        $normalizedSlug = sanitize_title($slug);
+
+        if ($normalizedSlug === '') {
+            return false;
+        }
+
+        $normalizedExcluded = Settings::sanitize_excluded_slugs($excludedSlugs);
+
+        return in_array($normalizedSlug, $normalizedExcluded, true);
+    }
+
+    private static function length(string $value): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($value, 'UTF-8');
+        }
+
+        return strlen($value);
     }
 }
