@@ -16,7 +16,11 @@
 - URL сохраняется
 - логин сохраняется
 - password сохраняется
+- region/city/area сохраняются
+- replacement dictionary сохраняется и проходит базовую нормализацию
+- partner name/phone/email/address сохраняются
 - exclusions очищаются
+- exclusions, введённые построчно в textarea, сохраняются как массив slug
 - словарь корректно сохраняется
 
 ## 2. API tests

@@ -71,7 +71,7 @@ make package
 - админский UI с рабочими экранами;
 - тесты и smoke-check на staging.
 
-## Актуальное состояние (main, HEAD 96380b9)
+## Актуальное состояние (main, HEAD 0247074)
 
 - ручной полный запуск синхронизации доступен на вкладке `Sync` кнопкой `Run sync now`;
 - первичная регионализация остаётся отдельным ручным действием;
@@ -83,3 +83,8 @@ make package
   - `Enable auto sync`,
   - `Sync time`,
   - `Next scheduled run (UTC)`.
+- на вкладке `Connection` есть рабочая форма:
+  - `Source URL`,
+  - `API username`,
+  - `Application password` (masked placeholder);
+- на вкладках `Region`, `Partner`, `Exclusions` есть рабочие формы сохранения настроек.
