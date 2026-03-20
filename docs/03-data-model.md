@@ -74,7 +74,31 @@
 - `message` text null
 - `context_json` longtext null
 
-## 4. Object meta
+## 4. Table: `wp_crs_sync_media_map`
+
+Назначение: карта соответствия remote media URL -> local attachment.
+
+### Поля
+
+- `id` bigint unsigned PK
+- `object_type` varchar(32) — `product`, `product_cat`, `page`
+- `object_remote_id` bigint unsigned
+- `remote_media_url` text
+- `local_attachment_id` bigint unsigned
+- `remote_media_hash` char(64)
+- `last_synced_at` datetime null
+- `last_operation_status` varchar(20)
+- `last_error_message` text null
+- `created_at` datetime
+- `updated_at` datetime
+
+### Индексы
+
+- unique `(object_type, object_remote_id, remote_media_hash)`
+- index `(local_attachment_id)`
+- index `(last_operation_status)`
+
+## 5. Object meta
 
 В MVP не делаем сложное дублирование карты в post meta / term meta.
 
@@ -86,7 +110,7 @@
 
 Но только как вспомогательные.
 
-## 5. Хэш полезной нагрузки
+## 6. Хэш полезной нагрузки
 
 Рекомендация:
 - сериализовать только значимые поля объекта;
@@ -94,7 +118,7 @@
 
 Это уменьшает ложные обновления.
 
-## 6. Состав normalized payload
+## 7. Состав normalized payload
 
 ### Product
 - remote id
@@ -113,6 +137,7 @@
 - name
 - slug
 - description
+- image src
 - seo_meta_title
 - seo_h1
 - seo_meta_description
@@ -127,7 +152,7 @@
 - excerpt
 - modified_gmt
 
-## 7. Lock option
+## 8. Lock option
 
 Для защиты от параллельных запусков нужна отдельная option, например:
 

@@ -29,19 +29,28 @@ final class Sync_Runner
     private ?Regionalizer $regionalizer;
     private ?Lock $lock;
     private Sync_Map_Repository $mapRepository;
+    private Media_Map_Repository $mediaMapRepository;
+    private Media_Sync_Service $mediaSyncService;
+    private Dependency_Check_Service $dependencyCheckService;
 
     public function __construct(
         Api_Client $client,
         Logger $logger,
         ?Regionalizer $regionalizer = null,
         ?Lock $lock = null,
-        ?Sync_Map_Repository $mapRepository = null
+        ?Sync_Map_Repository $mapRepository = null,
+        ?Media_Map_Repository $mediaMapRepository = null,
+        ?Media_Sync_Service $mediaSyncService = null,
+        ?Dependency_Check_Service $dependencyCheckService = null
     ) {
         $this->client = $client;
         $this->logger = $logger;
         $this->regionalizer = $regionalizer ?? new Regionalizer();
         $this->lock = $lock ?? new Lock();
         $this->mapRepository = $mapRepository ?? new Sync_Map_Repository();
+        $this->mediaMapRepository = $mediaMapRepository ?? new Media_Map_Repository();
+        $this->mediaSyncService = $mediaSyncService ?? new Media_Sync_Service();
+        $this->dependencyCheckService = $dependencyCheckService ?? new Dependency_Check_Service();
     }
 
     public static function make(): self
@@ -136,15 +145,44 @@ final class Sync_Runner
             $status = 'partial';
         }
 
-        return [
+        $dependencyWarnings = array_merge(
+            (array) ($categorySummary['dependency_warnings'] ?? []),
+            (array) ($productSummary['dependency_warnings'] ?? []),
+            (array) ($pageSummary['dependency_warnings'] ?? [])
+        );
+        $dependencyWarnings = array_values(array_unique(array_filter($dependencyWarnings, static function ($value): bool {
+            return is_string($value) && $value !== '';
+        })));
+
+        if ($dependencyWarnings !== [] && $status !== 'error') {
+            $status = 'partial';
+        }
+
+        $message = 'Categories, products and pages sync completed.';
+        $message = $this->append_dependency_warnings_to_message($message, $dependencyWarnings);
+
+        $context = [];
+
+        if ($dependencyWarnings !== []) {
+            $context['dependency_warnings'] = $dependencyWarnings;
+        }
+
+        $result = [
             'status'        => $status,
             'checked_count' => (int) ($categorySummary['checked_count'] ?? 0) + (int) ($productSummary['checked_count'] ?? 0) + (int) ($pageSummary['checked_count'] ?? 0),
             'updated_count' => (int) ($categorySummary['updated_count'] ?? 0) + (int) ($productSummary['updated_count'] ?? 0) + (int) ($pageSummary['updated_count'] ?? 0),
             'created_count' => (int) ($categorySummary['created_count'] ?? 0) + (int) ($productSummary['created_count'] ?? 0) + (int) ($pageSummary['created_count'] ?? 0),
             'skipped_count' => (int) ($categorySummary['skipped_count'] ?? 0) + (int) ($productSummary['skipped_count'] ?? 0) + (int) ($pageSummary['skipped_count'] ?? 0),
             'error_count'   => (int) ($categorySummary['error_count'] ?? 0) + (int) ($productSummary['error_count'] ?? 0) + (int) ($pageSummary['error_count'] ?? 0),
-            'message'       => 'Categories, products and pages sync completed.',
+            'message'       => $message,
         ];
+
+        if ($context !== []) {
+            $encodedContext = wp_json_encode($context);
+            $result['context_json'] = is_string($encodedContext) ? $encodedContext : null;
+        }
+
+        return $result;
     }
 
     private function run_categories_sync(array $settings): array
@@ -170,11 +208,13 @@ final class Sync_Runner
 
         $seenRemoteIds = [];
         $pendingParentAssignments = [];
+        $dependencyWarnings = [];
 
         foreach ($remoteCategories as $remoteCategory) {
             $summary['checked_count']++;
 
             try {
+                $this->collect_dependency_warnings(self::CATEGORY_OBJECT_TYPE, $remoteCategory, $dependencyWarnings);
                 $result = $this->sync_single_category(
                     $remoteCategory,
                     $settings,
@@ -205,12 +245,15 @@ final class Sync_Runner
 
         $summary['updated_count'] += $this->apply_category_unpublish_logic($seenRemoteIds);
 
-        if ($summary['error_count'] > 0) {
+        if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
             $summary['message'] = 'Categories sync finished with partial errors.';
         } else {
             $summary['message'] = 'Categories sync completed successfully.';
         }
+
+        $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
+        $summary['dependency_warnings'] = $dependencyWarnings;
 
         return $summary;
     }
@@ -238,11 +281,13 @@ final class Sync_Runner
         }
 
         $seenRemoteIds = [];
+        $dependencyWarnings = [];
 
         foreach ($remoteProducts as $remoteProduct) {
             $summary['checked_count']++;
 
             try {
+                $this->collect_dependency_warnings(self::PRODUCT_OBJECT_TYPE, $remoteProduct, $dependencyWarnings);
                 $result = $this->sync_single_product($remoteProduct, $settings, $dictionary, $seenRemoteIds);
 
                 if ($result === 'created') {
@@ -264,12 +309,15 @@ final class Sync_Runner
 
         $summary['updated_count'] += $this->apply_product_unpublish_logic($seenRemoteIds);
 
-        if ($summary['error_count'] > 0) {
+        if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
             $summary['message'] = 'Products sync finished with partial errors.';
         } else {
             $summary['message'] = 'Products sync completed successfully.';
         }
+
+        $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
+        $summary['dependency_warnings'] = $dependencyWarnings;
 
         return $summary;
     }
@@ -296,11 +344,13 @@ final class Sync_Runner
         }
 
         $seenRemoteIds = [];
+        $dependencyWarnings = [];
 
         foreach ($remotePages as $remotePage) {
             $summary['checked_count']++;
 
             try {
+                $this->collect_dependency_warnings(self::PAGE_OBJECT_TYPE, $remotePage, $dependencyWarnings);
                 $result = $this->sync_single_page($remotePage, $settings, $seenRemoteIds);
 
                 if ($result === 'created') {
@@ -322,12 +372,15 @@ final class Sync_Runner
 
         $summary['updated_count'] += $this->apply_page_unpublish_logic($seenRemoteIds);
 
-        if ($summary['error_count'] > 0) {
+        if ($summary['error_count'] > 0 || $dependencyWarnings !== []) {
             $summary['status'] = 'partial';
             $summary['message'] = 'Pages sync finished with partial errors.';
         } else {
             $summary['message'] = 'Pages sync completed successfully.';
         }
+
+        $summary['message'] = $this->append_dependency_warnings_to_message($summary['message'], $dependencyWarnings);
+        $summary['dependency_warnings'] = $dependencyWarnings;
 
         return $summary;
     }
@@ -552,6 +605,7 @@ final class Sync_Runner
 
         update_term_meta($localTermId, self::REMOTE_ID_META_KEY, $remoteId);
         $this->update_category_seo_meta($localTermId, $remoteCategory);
+        $this->mediaSyncService->sync_category_media($localTermId, $remoteId, $remoteCategory);
         $this->set_category_unpublished_state($localTermId, false);
         $this->schedule_deferred_parent_assignment(
             $remoteCategory,
@@ -709,6 +763,13 @@ final class Sync_Runner
         $this->sync_product_type($localPostId, $remoteProduct);
         $this->sync_product_seo_meta($localPostId, $remoteProduct);
         $this->apply_product_seo_regionalization($localPostId, $dictionary);
+        $this->mediaSyncService->localize_product_media(
+            $localPostId,
+            $remoteId,
+            (string) ($remoteProduct['description'] ?? ''),
+            (string) ($remoteProduct['short_description'] ?? '')
+        );
+        $this->mediaSyncService->sync_product_media($localPostId, $remoteId, $remoteProduct);
         $this->set_product_unpublished_state($localPostId, false);
 
         $this->mapRepository->upsert([
@@ -846,6 +907,11 @@ final class Sync_Runner
         }
 
         update_post_meta($localPostId, self::REMOTE_ID_META_KEY, $remoteId);
+        $this->mediaSyncService->localize_page_media(
+            $localPostId,
+            $remoteId,
+            $this->extract_remote_page_text($remotePage, 'content')
+        );
         $this->set_page_unpublished_state($localPostId, false);
 
         $this->mapRepository->upsert([
@@ -958,6 +1024,7 @@ final class Sync_Runner
             'slug'                 => sanitize_title((string) ($remoteCategory['slug'] ?? '')),
             'description'          => wp_kses_post((string) ($remoteCategory['description'] ?? '')),
             'parent'               => (int) ($remoteCategory['parent'] ?? 0),
+            'image_src'            => $this->extract_category_image_src($remoteCategory),
             'seo_meta_title'       => $this->extract_remote_seo_value($remoteCategory, 'seo_meta_title'),
             'seo_h1'               => $this->extract_remote_seo_value($remoteCategory, 'seo_h1'),
             'seo_meta_description' => $this->extract_remote_seo_value($remoteCategory, 'seo_meta_description'),
@@ -1122,6 +1189,13 @@ final class Sync_Runner
             return true;
         }
 
+        $expectedImage = $this->extract_category_image_src($remoteCategory);
+        $localThumbnailId = (int) get_term_meta((int) $localTerm->term_id, 'thumbnail_id', true);
+
+        if ($expectedImage !== '' && $localThumbnailId <= 0) {
+            return true;
+        }
+
         if (! $skipParentCheck && (int) $localTerm->parent !== $expectedParentId) {
             return true;
         }
@@ -1205,9 +1279,161 @@ final class Sync_Runner
             }
         }
 
+        if ($this->has_local_product_media_drift($localPost, $remoteProduct)) {
+            return true;
+        }
+
         $unpublishedFlag = (string) get_post_meta((int) $localPost->ID, self::UNPUBLISHED_META_KEY, true);
 
         return $unpublishedFlag !== '';
+    }
+
+    private function has_local_product_media_drift(\WP_Post $localPost, array $remoteProduct): bool
+    {
+        $remoteId = (int) ($remoteProduct['id'] ?? 0);
+        $remoteImageUrls = $this->extract_remote_product_image_urls($remoteProduct);
+        $remoteContentMediaUrls = $this->extract_media_urls_from_product_content($remoteProduct);
+
+        if ($remoteImageUrls === [] && $remoteContentMediaUrls === []) {
+            return false;
+        }
+
+        if ($remoteImageUrls !== []) {
+            $thumbnailId = (int) get_post_thumbnail_id((int) $localPost->ID);
+
+            if ($thumbnailId <= 0 || get_post_type($thumbnailId) !== 'attachment') {
+                return true;
+            }
+
+            $expectedGalleryCount = max(0, count($remoteImageUrls) - 1);
+            $rawGallery = trim((string) get_post_meta((int) $localPost->ID, '_product_image_gallery', true));
+            $galleryIds = $rawGallery === '' ? [] : array_map('intval', explode(',', $rawGallery));
+            $galleryIds = array_values(array_filter($galleryIds, static function (int $id): bool {
+                return $id > 0 && get_post_type($id) === 'attachment';
+            }));
+
+            if (count($galleryIds) < $expectedGalleryCount) {
+                return true;
+            }
+        }
+
+        if ($remoteId <= 0 || $remoteContentMediaUrls === []) {
+            return false;
+        }
+
+        foreach ($remoteContentMediaUrls as $mediaUrl) {
+            $mappedMedia = $this->mediaMapRepository->find_by_remote_url(self::PRODUCT_OBJECT_TYPE, $remoteId, $mediaUrl);
+
+            if (! is_array($mappedMedia)) {
+                return true;
+            }
+
+            $attachmentId = (int) ($mappedMedia['local_attachment_id'] ?? 0);
+
+            if ($attachmentId <= 0 || get_post_type($attachmentId) !== 'attachment') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function extract_remote_product_image_urls(array $remoteProduct): array
+    {
+        $images = (array) ($remoteProduct['images'] ?? []);
+        $urls = [];
+
+        foreach ($images as $imageItem) {
+            if (! is_array($imageItem)) {
+                continue;
+            }
+
+            $url = esc_url_raw((string) ($imageItem['src'] ?? ''));
+
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+
+        return array_values(array_unique($urls));
+    }
+
+    private function extract_media_urls_from_product_content(array $remoteProduct): array
+    {
+        $description = (string) ($remoteProduct['description'] ?? '');
+        $shortDescription = (string) ($remoteProduct['short_description'] ?? '');
+
+        $allUrls = array_merge(
+            $this->extract_media_urls_from_html($description),
+            $this->extract_media_urls_from_html($shortDescription)
+        );
+
+        return array_values(array_unique($allUrls));
+    }
+
+    private function extract_media_urls_from_html(string $html): array
+    {
+        if ($html === '') {
+            return [];
+        }
+
+        $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $html = str_replace('\\/', '/', $html);
+
+        $urls = [];
+        $attributeMatches = [];
+        preg_match_all('/<(img|source|video|a)[^>]+(?:src|href|data-alt_link|data-src|data-url)=["\']([^"\']+)["\']/i', $html, $attributeMatches);
+
+        if (isset($attributeMatches[2]) && is_array($attributeMatches[2])) {
+            foreach ($attributeMatches[2] as $rawUrl) {
+                $url = esc_url_raw((string) $rawUrl);
+
+                if ($url === '') {
+                    continue;
+                }
+
+                if ($this->is_supported_media_url($url)) {
+                    $urls[] = $url;
+                }
+            }
+        }
+
+        $textMatches = [];
+        preg_match_all('/https?:\/\/[^\s"\'<>]+/i', $html, $textMatches);
+
+        if (isset($textMatches[0]) && is_array($textMatches[0])) {
+            foreach ($textMatches[0] as $rawUrl) {
+                $rawUrl = rtrim((string) $rawUrl, ".,);]");
+                $url = esc_url_raw($rawUrl);
+
+                if ($url === '') {
+                    continue;
+                }
+
+                if ($this->is_supported_media_url($url)) {
+                    $urls[] = $url;
+                }
+            }
+        }
+
+        return array_values(array_unique($urls));
+    }
+
+    private function is_supported_media_url(string $url): bool
+    {
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+
+        if ($path === '') {
+            return false;
+        }
+
+        if (strpos($path, '/wp-content/uploads/') !== false) {
+            return true;
+        }
+
+        $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'mp4', 'webm', 'ogg', 'mov', 'm4v', 'avi'], true);
     }
 
     private function has_local_page_drift(\WP_Post $localPost, array $remotePage): bool
@@ -1760,6 +1986,19 @@ final class Sync_Runner
         return is_scalar($value) ? (string) $value : '';
     }
 
+    private function extract_category_image_src(array $remoteCategory): string
+    {
+        $image = $remoteCategory['image'] ?? null;
+
+        if (! is_array($image)) {
+            return '';
+        }
+
+        $src = esc_url_raw((string) ($image['src'] ?? ''));
+
+        return is_string($src) ? $src : '';
+    }
+
     private function extract_remote_modified_gmt(array $remoteObject): ?string
     {
         $value = $remoteObject['date_modified_gmt'] ?? $remoteObject['modified_gmt'] ?? null;
@@ -1911,6 +2150,35 @@ final class Sync_Runner
         }
 
         return $this->sanitize_decimal_string((string) ($remoteProduct['regular_price'] ?? ''));
+    }
+
+    private function collect_dependency_warnings(string $objectType, array $remoteObject, array &$warnings): void
+    {
+        $missing = $this->dependencyCheckService->detect_missing_for_object($objectType, $remoteObject);
+
+        if ($missing === []) {
+            return;
+        }
+
+        $warnings[] = $this->dependencyCheckService->format_missing_message($missing);
+        $warnings = array_values(array_unique($warnings));
+    }
+
+    private function append_dependency_warnings_to_message(string $baseMessage, array $warnings): string
+    {
+        if ($warnings === []) {
+            return $baseMessage;
+        }
+
+        $preview = array_slice($warnings, 0, 2);
+        $suffix = implode(' | ', $preview);
+        $extraCount = count($warnings) - count($preview);
+
+        if ($extraCount > 0) {
+            $suffix .= sprintf(' | and %d more dependency warning(s)', $extraCount);
+        }
+
+        return trim($baseMessage . ' ' . $suffix);
     }
 
     private function mark_category_sync_error(array $remoteCategory, string $message): void

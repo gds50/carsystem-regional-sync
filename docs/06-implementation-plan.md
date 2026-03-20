@@ -175,3 +175,17 @@
 
 Результат:
 - новые и обновлённые категории/товары переносятся вместе с изображениями.
+
+## Milestone 13 — Media sync + dependency diagnostics
+
+Сделать:
+- добавить таблицу `crs_sync_media_map` для соответствия remote media URL -> local attachment;
+- синхронизировать category image в `thumbnail_id`;
+- синхронизировать product featured image + gallery;
+- локализовать media URL в page content (`img/video/source`) через локальные attachment URL;
+- добавить pre-check зависимостей для видео (VideoPack) и писать в лог явное сообщение `Install and activate ...`, если плагин отсутствует;
+- завершать run статусом `partial`, если есть object-level media/dependency ошибки, без остановки всего run.
+
+Результат:
+- при добавлении/обновлении фото и видео на source файлы перекачиваются на региональный сайт;
+- при отсутствии нужного плагина в логах есть явная инструкция, какой плагин установить.

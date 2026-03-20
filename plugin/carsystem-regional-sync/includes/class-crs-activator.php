@@ -8,6 +8,25 @@ if (! defined('ABSPATH')) {
 
 final class Activator
 {
+    public static function maybe_upgrade_schema(): void
+    {
+        global $wpdb;
+
+        $requiredTables = [
+            $wpdb->prefix . 'crs_sync_map',
+            $wpdb->prefix . 'crs_sync_logs',
+            $wpdb->prefix . 'crs_sync_media_map',
+        ];
+
+        foreach ($requiredTables as $tableName) {
+            if (! self::table_exists($tableName)) {
+                self::create_tables();
+                update_option('crs_sync_plugin_version', CRS_SYNC_VERSION, false);
+                return;
+            }
+        }
+    }
+
     public static function activate(): void
     {
         self::assert_environment();
@@ -34,6 +53,7 @@ final class Activator
 
         $charsetCollate = $wpdb->get_charset_collate();
         $mapTable = $wpdb->prefix . 'crs_sync_map';
+        $mediaMapTable = $wpdb->prefix . 'crs_sync_media_map';
         $logTable = $wpdb->prefix . 'crs_sync_logs';
 
         $sqlMap = "CREATE TABLE {$mapTable} (
@@ -75,8 +95,27 @@ final class Activator
             KEY started_at_idx (started_at)
         ) {$charsetCollate};";
 
+        $sqlMediaMap = "CREATE TABLE {$mediaMapTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            object_type VARCHAR(32) NOT NULL,
+            object_remote_id BIGINT UNSIGNED NOT NULL,
+            remote_media_url TEXT NOT NULL,
+            local_attachment_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            remote_media_hash CHAR(64) NOT NULL DEFAULT '',
+            last_synced_at DATETIME NULL,
+            last_operation_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            last_error_message TEXT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY object_remote_media_unique (object_type, object_remote_id, remote_media_hash),
+            KEY local_attachment_idx (local_attachment_id),
+            KEY last_operation_status_idx (last_operation_status)
+        ) {$charsetCollate};";
+
         dbDelta($sqlMap);
         dbDelta($sqlLogs);
+        dbDelta($sqlMediaMap);
     }
 
     private static function assert_environment(): void
@@ -102,5 +141,15 @@ final class Activator
         );
 
         wp_die($message, esc_html__('Plugin Activation Error', 'carsystem-regional-sync'), ['response' => 400]);
+    }
+
+    private static function table_exists(string $tableName): bool
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare('SHOW TABLES LIKE %s', $tableName);
+        $exists = $wpdb->get_var($sql);
+
+        return is_string($exists) && $exists !== '';
     }
 }

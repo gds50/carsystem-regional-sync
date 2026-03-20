@@ -71,7 +71,7 @@ make package
 - админский UI с рабочими экранами;
 - тесты и smoke-check на staging.
 
-## Актуальное состояние (main, HEAD 2a2d3af)
+## Актуальное состояние (main)
 
 - ручной полный запуск синхронизации доступен на вкладке `Sync` кнопкой `Run sync now`;
 - первичная регионализация остаётся отдельным ручным действием;
@@ -89,3 +89,9 @@ make package
   - `Application password` (masked placeholder);
 - на вкладках `Region`, `Partner`, `Exclusions` есть рабочие формы сохранения настроек.
 - milestone `M12 (QA/hardening)` закрыт и зафиксирован в `docs/06-implementation-plan.md`.
+- добавлен `M13` (media sync + dependency diagnostics):
+  - новая таблица `crs_sync_media_map` для соответствий media;
+  - синхронизация category image (`thumbnail_id`);
+  - синхронизация product featured image + gallery из remote `images`;
+  - локализация media URL в page content (`img/video/source`);
+  - диагностика отсутствующего VideoPack с явной подсказкой в логах (`Install and activate ...`).

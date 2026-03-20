@@ -22,6 +22,7 @@ final class Plugin
 
     public function boot(): void
     {
+        add_action('init', [Activator::class, 'maybe_upgrade_schema']);
         add_action('init', [$this, 'maybe_ensure_cron_schedule']);
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_menu', [$this, 'register_admin']);

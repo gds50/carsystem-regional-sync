@@ -84,5 +84,20 @@ if (! function_exists('wp_timezone')) {
     }
 }
 
+if (! function_exists('shortcode_exists')) {
+    function shortcode_exists(string $tag): bool
+    {
+        return false;
+    }
+}
+
+if (! function_exists('is_plugin_active')) {
+    function is_plugin_active(string $plugin): bool
+    {
+        return false;
+    }
+}
+
 require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-settings.php';
 require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-dictionary.php';
+require_once __DIR__ . '/../../plugin/carsystem-regional-sync/includes/class-crs-dependency-check-service.php';
