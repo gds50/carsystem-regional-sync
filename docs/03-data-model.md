@@ -145,6 +145,7 @@
 - slug
 - description
 - image src
+- menu_order
 - seo_meta_title
 - seo_h1
 - seo_meta_description

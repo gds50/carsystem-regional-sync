@@ -97,6 +97,7 @@ make package
 - добавлен `M13` (media sync + dependency diagnostics):
   - новая таблица `crs_sync_media_map` для соответствий media;
   - синхронизация category image (`thumbnail_id`);
+  - синхронизация category `menu_order` (term meta `order`) для совпадения порядка в sidebar/widget;
   - синхронизация product featured image + gallery из remote `images`;
   - локализация media URL в page content (`img/video/source`);
   - диагностика отсутствующего VideoPack с явной подсказкой в логах (`Install and activate ...`).

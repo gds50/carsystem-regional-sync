@@ -85,6 +85,7 @@
 - create/update локальных категорий;
 - синхронизацию `description`;
 - синхронизацию `parent` по mapping (с корректной иерархией);
+- синхронизацию `menu_order` (term meta `order`) для сохранения порядка в sidebar/widget;
 - сохранение SEO meta;
 - mapping update;
 - unpublish logic.

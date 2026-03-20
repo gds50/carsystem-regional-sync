@@ -920,6 +920,7 @@ final class Sync_Runner
         }
 
         update_term_meta($localTermId, self::REMOTE_ID_META_KEY, $remoteId);
+        $this->sync_category_menu_order($localTermId, $remoteCategory);
         $this->update_category_seo_meta($localTermId, $remoteCategory);
         $this->mediaSyncService->sync_category_media($localTermId, $remoteId, $remoteCategory);
         $this->set_category_unpublished_state($localTermId, false);
@@ -1340,6 +1341,7 @@ final class Sync_Runner
             'slug'                 => sanitize_title((string) ($remoteCategory['slug'] ?? '')),
             'description'          => wp_kses_post((string) ($remoteCategory['description'] ?? '')),
             'parent'               => (int) ($remoteCategory['parent'] ?? 0),
+            'menu_order'           => max(0, (int) ($remoteCategory['menu_order'] ?? 0)),
             'image_src'            => $this->extract_category_image_src($remoteCategory),
             'seo_meta_title'       => $this->extract_remote_seo_value($remoteCategory, 'seo_meta_title'),
             'seo_h1'               => $this->extract_remote_seo_value($remoteCategory, 'seo_h1'),
@@ -1512,6 +1514,13 @@ final class Sync_Runner
             return true;
         }
 
+        $expectedMenuOrder = max(0, (int) ($remoteCategory['menu_order'] ?? 0));
+        $localMenuOrder = (int) get_term_meta((int) $localTerm->term_id, 'order', true);
+
+        if ($localMenuOrder !== $expectedMenuOrder) {
+            return true;
+        }
+
         if (! $skipParentCheck && (int) $localTerm->parent !== $expectedParentId) {
             return true;
         }
@@ -1542,6 +1551,12 @@ final class Sync_Runner
         $unpublishedFlag = (string) get_term_meta((int) $localTerm->term_id, self::UNPUBLISHED_META_KEY, true);
 
         return $unpublishedFlag !== '';
+    }
+
+    private function sync_category_menu_order(int $termId, array $remoteCategory): void
+    {
+        $menuOrder = max(0, (int) ($remoteCategory['menu_order'] ?? 0));
+        update_term_meta($termId, 'order', $menuOrder);
     }
 
     private function has_local_product_drift(

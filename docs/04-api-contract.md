@@ -78,6 +78,7 @@
 Примечание по scope:
 - в MVP для категорий обязательны `name/slug/description/parent` и SEO-поля;
 - поле `image.src` используется для синхронизации миниатюры категории в региональном сайте.
+- поле `menu_order` используется для синхронизации порядка категорий в sidebar/widget меню регионального сайта.
 
 ### 2.4 Обычные страницы
 - `GET /wp-json/wp/v2/pages`
@@ -147,6 +148,7 @@
 
 Для `category` в MVP обязательно синхронизировать `parent` и `description`, чтобы не ломалась иерархия и контент.
 Для `category` дополнительно синхронизируется image -> локальный `thumbnail_id`.
+Для `category` дополнительно синхронизируется `menu_order` -> term meta `order`, чтобы порядок категорий совпадал с source.
 Для `product` в MVP обязательно синхронизировать расширенный набор полей (включая `short_description`, цены, `min_quantity/max_quantity/product_step`, вес/габариты, tax и category mapping).
 Для `product` дополнительно синхронизируются featured image и gallery из `images`.
 Контроль остатков (`manage_stock/stock_quantity/stock_status`) в текущем scope отключён и не синхронизируется.
