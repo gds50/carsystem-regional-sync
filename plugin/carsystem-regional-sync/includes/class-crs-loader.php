@@ -23,5 +23,7 @@ final class Loader
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-activator.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-plugin.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-settings.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-security.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-admin-page.php';
     }
 }

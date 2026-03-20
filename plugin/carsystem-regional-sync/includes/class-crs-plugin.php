@@ -22,10 +22,16 @@ final class Plugin
     public function boot(): void
     {
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_menu', [$this, 'register_admin']);
     }
 
     public function register_settings(): void
     {
         Settings::register();
+    }
+
+    public function register_admin(): void
+    {
+        (new Admin_Page())->register();
     }
 }

@@ -30,8 +30,6 @@ final class Admin_Page
     public function render(): void
     {
         Security::assert_admin_access();
-        $settings = Settings::get();
-        $logs = (new Sync_Log_Repository())->latest(20);
 
         require CRS_SYNC_PLUGIN_DIR . '/templates/admin-page.php';
     }
