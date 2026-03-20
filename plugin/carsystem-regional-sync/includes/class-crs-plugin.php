@@ -117,25 +117,36 @@ final class Plugin
 
         $syncQueued = '1';
         $syncAutoPoll = '1';
+        $isSystemCronMode = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
         $lock = new Lock();
 
         if ($lock->is_active()) {
             $syncQueued = 'active';
+        } else {
+            $this->clear_manual_sync_queue();
+        }
+
+        if ($syncQueued === 'active') {
+            // Keep current state.
         } elseif (wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK) !== false) {
-            $syncQueued = 'already';
+            if ($isSystemCronMode) {
+                $syncQueued = 'scheduled';
+                $syncAutoPoll = '0';
+            } else {
+                $syncQueued = 'already';
+            }
         } else {
             $scheduled = wp_schedule_single_event(time() + 5, CRS_SYNC_MANUAL_CRON_HOOK, []);
 
             if ($scheduled === false || is_wp_error($scheduled)) {
                 $syncQueued = 'error';
-            } elseif (function_exists('spawn_cron')) {
-                spawn_cron();
             } else {
-                wp_remote_post(site_url('wp-cron.php?doing_wp_cron=' . rawurlencode((string) microtime(true))), [
-                    'timeout'  => 0.01,
-                    'blocking' => false,
-                    'sslverify'=> apply_filters('https_local_ssl_verify', false),
-                ]);
+                $this->trigger_cron_runner();
+
+                if ($isSystemCronMode) {
+                    $syncQueued = 'scheduled';
+                    $syncAutoPoll = '0';
+                }
             }
         }
 
@@ -192,6 +203,36 @@ final class Plugin
         }
 
         return substr($sanitized, 0, 500);
+    }
+
+    private function trigger_cron_runner(): void
+    {
+        if (function_exists('spawn_cron') && (! defined('DISABLE_WP_CRON') || ! DISABLE_WP_CRON)) {
+            spawn_cron();
+        }
+
+        // Always trigger a non-blocking wp-cron request as fallback.
+        wp_remote_post(site_url('wp-cron.php?doing_wp_cron=' . rawurlencode((string) microtime(true))), [
+            'timeout'   => 0.01,
+            'blocking'  => false,
+            'sslverify' => apply_filters('https_local_ssl_verify', false),
+        ]);
+    }
+
+    private function clear_manual_sync_queue(): void
+    {
+        $guard = 0;
+
+        while ($guard < 50) {
+            $timestamp = wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK);
+
+            if ($timestamp === false) {
+                break;
+            }
+
+            wp_unschedule_event((int) $timestamp, CRS_SYNC_MANUAL_CRON_HOOK);
+            $guard++;
+        }
     }
 
 }

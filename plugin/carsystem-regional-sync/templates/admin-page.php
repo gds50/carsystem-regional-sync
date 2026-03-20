@@ -298,6 +298,10 @@ if (! isset($tabs[$activeTab])) {
                 <div class="notice notice-info" style="margin: 0 0 16px 0;">
                     <p><strong><?php echo esc_html__('Sync is already running. New run was not queued to avoid lock skip loops.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
+            <?php elseif ($syncQueuedState === 'scheduled') : ?>
+                <div class="notice notice-info" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Sync queued for system cron. It will start on the next scheduler tick.', 'carsystem-regional-sync'); ?></strong></p>
+                </div>
             <?php elseif ($syncQueuedState === 'error') : ?>
                 <div class="notice notice-error" style="margin: 0 0 16px 0;">
                     <p><strong><?php echo esc_html__('Failed to queue background sync. Check cron configuration and logs.', 'carsystem-regional-sync'); ?></strong></p>
