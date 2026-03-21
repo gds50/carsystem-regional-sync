@@ -3,7 +3,7 @@
  * Plugin Name: Carsystem Regional Sync
  * Description: MVP plugin for syncing regional clone sites from carsystem.su via WordPress and WooCommerce REST API.
  * Version: 0.1.0
- * Author: OpenAI
+ * Author: git gds50
  * Requires at least: 6.9
  * Requires PHP: 7.4
  * Text Domain: carsystem-regional-sync
