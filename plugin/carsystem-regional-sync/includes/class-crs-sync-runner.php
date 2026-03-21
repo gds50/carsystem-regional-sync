@@ -1034,7 +1034,10 @@ final class Sync_Runner
         $localPost = $this->resolve_local_product($mapping, $slug);
         $localPostId = $localPost instanceof \WP_Post ? (int) $localPost->ID : 0;
 
-        $payload = $this->normalize_product_payload($remoteProduct);
+        $preparedDescription = $this->prepare_product_description((string) ($remoteProduct['description'] ?? ''), $settings);
+        $preparedShortDescription = $this->prepare_product_short_description((string) ($remoteProduct['short_description'] ?? ''), $settings);
+
+        $payload = $this->normalize_product_payload($remoteProduct, $preparedDescription, $preparedShortDescription);
         $encodedPayload = wp_json_encode($payload);
         $payloadHash = hash('sha256', is_string($encodedPayload) ? $encodedPayload : '');
         $remoteModified = $this->extract_remote_modified_gmt($remoteProduct);
@@ -1094,7 +1097,7 @@ final class Sync_Runner
             return 'skipped';
         }
 
-        $postData = $this->build_product_post_data($remoteProduct);
+        $postData = $this->build_product_post_data($remoteProduct, $preparedDescription, $preparedShortDescription);
 
         if ($localPostId <= 0) {
             $createData = array_merge($postData, [
@@ -1130,7 +1133,7 @@ final class Sync_Runner
 
         update_post_meta($localPostId, self::REMOTE_ID_META_KEY, $remoteId);
 
-        $this->sync_product_metas($localPostId, $remoteProduct);
+        $this->sync_product_metas($localPostId, $remoteProduct, $settings);
         $this->sync_product_categories($localPostId, $mappedCategoryIds);
         $this->sync_product_type($localPostId, $remoteProduct);
         $this->sync_product_seo_meta($localPostId, $remoteProduct);
@@ -1138,8 +1141,8 @@ final class Sync_Runner
         $this->mediaSyncService->localize_product_media(
             $localPostId,
             $remoteId,
-            (string) ($remoteProduct['description'] ?? ''),
-            (string) ($remoteProduct['short_description'] ?? '')
+            $preparedDescription,
+            $preparedShortDescription
         );
         $this->mediaSyncService->sync_product_media($localPostId, $remoteId, $remoteProduct);
         $this->set_product_unpublished_state($localPostId, false);
@@ -1405,7 +1408,7 @@ final class Sync_Runner
         ];
     }
 
-    private function normalize_product_payload(array $remoteProduct): array
+    private function normalize_product_payload(array $remoteProduct, string $preparedDescription, string $preparedShortDescription): array
     {
         $categoryIds = array_map('intval', wp_list_pluck((array) ($remoteProduct['categories'] ?? []), 'id'));
         $categoryIds = array_values(array_unique($categoryIds));
@@ -1416,8 +1419,8 @@ final class Sync_Runner
             'name'                 => sanitize_text_field((string) ($remoteProduct['name'] ?? '')),
             'slug'                 => sanitize_title((string) ($remoteProduct['slug'] ?? '')),
             'status'               => $this->normalize_post_status((string) ($remoteProduct['status'] ?? 'publish')),
-            'description'          => wp_kses_post((string) ($remoteProduct['description'] ?? '')),
-            'short_description'    => wp_kses_post((string) ($remoteProduct['short_description'] ?? '')),
+            'description'          => wp_kses_post($preparedDescription),
+            'short_description'    => wp_kses_post($preparedShortDescription),
             'sku'                  => sanitize_text_field((string) ($remoteProduct['sku'] ?? '')),
             'regular_price'        => $this->sanitize_decimal_string((string) ($remoteProduct['regular_price'] ?? '')),
             'sale_price'           => $this->sanitize_decimal_string((string) ($remoteProduct['sale_price'] ?? '')),
@@ -1512,7 +1515,7 @@ final class Sync_Runner
         ];
     }
 
-    private function build_product_post_data(array $remoteProduct): array
+    private function build_product_post_data(array $remoteProduct, string $preparedDescription, string $preparedShortDescription): array
     {
         $status = $this->normalize_post_status((string) ($remoteProduct['status'] ?? 'publish'));
 
@@ -1520,10 +1523,188 @@ final class Sync_Runner
             'post_title'   => sanitize_text_field((string) ($remoteProduct['name'] ?? '')),
             'post_name'    => sanitize_title((string) ($remoteProduct['slug'] ?? '')),
             'post_status'  => $status,
-            'post_content' => wp_kses_post((string) ($remoteProduct['description'] ?? '')),
-            'post_excerpt' => wp_kses_post((string) ($remoteProduct['short_description'] ?? '')),
+            'post_content' => wp_kses_post($preparedDescription),
+            'post_excerpt' => wp_kses_post($preparedShortDescription),
             'menu_order'   => (int) ($remoteProduct['menu_order'] ?? 0),
         ];
+    }
+
+    private function prepare_product_description(string $description, array $settings): string
+    {
+        $prepared = $description;
+        $prepared = $this->normalize_batch_testing_notice($prepared, $settings);
+
+        return $prepared;
+    }
+
+    private function prepare_product_short_description(string $shortDescription, array $settings): string
+    {
+        return $this->replace_source_domain_with_local($shortDescription, $settings);
+    }
+
+    private function normalize_batch_testing_notice(string $content, array $settings): string
+    {
+        $containsMarker = function_exists('mb_stripos')
+            ? mb_stripos($content, 'проверку партий')
+            : stripos($content, 'проверку партий');
+
+        if ($content === '' || $containsMarker === false) {
+            return $content;
+        }
+
+        $normalized = preg_replace(
+            '/На\h+данный\h+момент\h+в\h+тестовом\h+режиме\h+мы\h+запустили\h+проверку\h+партий\h+у\h+нас\h+на\h+сайте/iu',
+            'На данный момент в тестовом режиме мы запустили проверку партий у нас на основном сайте carsystem.su',
+            $content
+        );
+        $normalized = is_string($normalized) ? $normalized : $content;
+
+        $sourceHost = $this->extract_source_host_from_settings($settings);
+        $localHost = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+
+        if ($sourceHost === '' || $localHost === '') {
+            return $normalized;
+        }
+
+        $normalized = preg_replace_callback(
+            '/<a\b[^>]*href=(["\'])([^"\']+)\1[^>]*>/iu',
+            function (array $matches) use ($sourceHost, $localHost): string {
+                $fullTag = (string) ($matches[0] ?? '');
+                $href = (string) ($matches[2] ?? '');
+
+                if ($href === '') {
+                    return $fullTag;
+                }
+
+                $rewrittenHref = $this->rewrite_absolute_url_host($href, $localHost, $sourceHost);
+                $rewrittenHref = $this->rewrite_relative_url_to_source($rewrittenHref, $sourceHost);
+
+                $tag = preg_replace('/href=(["\'])([^"\']+)\1/iu', 'href="' . esc_url_raw($rewrittenHref) . '"', $fullTag, 1);
+                $tag = is_string($tag) ? $tag : $fullTag;
+
+                if (stripos($tag, 'target=') === false) {
+                    $tag = preg_replace('/<a\b/iu', '<a target="_blank"', $tag, 1);
+                    $tag = is_string($tag) ? $tag : $fullTag;
+                }
+
+                if (stripos($tag, 'rel=') === false) {
+                    $tag = preg_replace('/<a\b/iu', '<a rel="noopener noreferrer"', $tag, 1);
+                    $tag = is_string($tag) ? $tag : $fullTag;
+                }
+
+                return $tag;
+            },
+            $normalized
+        );
+
+        return is_string($normalized) ? $normalized : $content;
+    }
+
+    private function replace_source_domain_with_local(string $html, array $settings): string
+    {
+        $sourceHost = $this->extract_source_host_from_settings($settings);
+        $localHost = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+
+        if ($html === '' || $sourceHost === '' || $localHost === '') {
+            return $html;
+        }
+
+        $plainFrom = [
+            'https://' . $sourceHost,
+            'http://' . $sourceHost,
+            'https://www.' . $sourceHost,
+            'http://www.' . $sourceHost,
+            'https:\\/\\/' . $sourceHost,
+            'http:\\/\\/' . $sourceHost,
+            'https:\\/\\/www.' . $sourceHost,
+            'http:\\/\\/www.' . $sourceHost,
+        ];
+        $plainTo = [
+            'https://' . $localHost,
+            'https://' . $localHost,
+            'https://' . $localHost,
+            'https://' . $localHost,
+            'https:\\/\\/' . $localHost,
+            'https:\\/\\/' . $localHost,
+            'https:\\/\\/' . $localHost,
+            'https:\\/\\/' . $localHost,
+        ];
+
+        $normalizedHtml = str_ireplace($plainFrom, $plainTo, $html);
+
+        $replaced = preg_replace_callback(
+            '/https?:\/\/[^\s"\'<>]+/iu',
+            function (array $matches) use ($sourceHost, $localHost): string {
+                $url = (string) ($matches[0] ?? '');
+                if ($url === '') {
+                    return $url;
+                }
+
+                return $this->rewrite_absolute_url_host($url, $sourceHost, $localHost);
+            },
+            $normalizedHtml
+        );
+
+        if (! is_string($replaced)) {
+            return $normalizedHtml;
+        }
+
+        return $replaced;
+    }
+
+    private function rewrite_absolute_url_host(string $url, string $fromHost, string $toHost): string
+    {
+        $parts = wp_parse_url($url);
+
+        if (! is_array($parts)) {
+            return $url;
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $normalizedFrom = ltrim(strtolower($fromHost), '.');
+
+        if ($host === '' || $normalizedFrom === '') {
+            return $url;
+        }
+
+        if ($host !== $normalizedFrom && $host !== 'www.' . $normalizedFrom) {
+            return $url;
+        }
+
+        $scheme = (string) ($parts['scheme'] ?? 'https');
+        $path = (string) ($parts['path'] ?? '/');
+        $query = isset($parts['query']) ? (string) $parts['query'] : '';
+        $fragment = isset($parts['fragment']) ? (string) $parts['fragment'] : '';
+
+        $rebuilt = strtolower($scheme) . '://' . ltrim(strtolower($toHost), '.');
+        $rebuilt .= $path !== '' ? $path : '/';
+
+        if ($query !== '') {
+            $rebuilt .= '?' . $query;
+        }
+
+        if ($fragment !== '') {
+            $rebuilt .= '#' . $fragment;
+        }
+
+        return esc_url_raw($rebuilt);
+    }
+
+    private function rewrite_relative_url_to_source(string $url, string $sourceHost): string
+    {
+        $trimmed = trim($url);
+
+        if ($trimmed === '' || strpos($trimmed, '/') !== 0 || strpos($trimmed, '//') === 0) {
+            return $url;
+        }
+
+        return esc_url_raw('https://' . ltrim(strtolower($sourceHost), '.') . $trimmed);
+    }
+
+    private function extract_source_host_from_settings(array $settings): string
+    {
+        $sourceUrl = (string) ($settings['source_url'] ?? '');
+        return strtolower((string) wp_parse_url($sourceUrl, PHP_URL_HOST));
     }
 
     private function build_page_post_data(array $remotePage): array
@@ -1988,8 +2169,11 @@ final class Sync_Runner
         }
     }
 
-    private function sync_product_metas(int $postId, array $remoteProduct): void
+    private function sync_product_metas(int $postId, array $remoteProduct, array $settings): void
     {
+        $preparedDescription = $this->prepare_product_description((string) ($remoteProduct['description'] ?? ''), $settings);
+        $preparedShortDescription = $this->prepare_product_short_description((string) ($remoteProduct['short_description'] ?? ''), $settings);
+
         $metaMap = [
             '_sku'               => sanitize_text_field((string) ($remoteProduct['sku'] ?? '')),
             '_regular_price'     => $this->sanitize_decimal_string((string) ($remoteProduct['regular_price'] ?? '')),
@@ -2017,7 +2201,7 @@ final class Sync_Runner
             '_crs_remote_tags_json'        => wp_json_encode((array) ($remoteProduct['tags'] ?? [])),
             '_crs_remote_downloads_json'   => wp_json_encode((array) ($remoteProduct['downloads'] ?? [])),
             '_crs_remote_meta_data_json'   => wp_json_encode((array) ($remoteProduct['meta_data'] ?? [])),
-            '_crs_remote_catalog_payload'  => wp_json_encode($this->normalize_product_payload($remoteProduct)),
+            '_crs_remote_catalog_payload'  => wp_json_encode($this->normalize_product_payload($remoteProduct, $preparedDescription, $preparedShortDescription)),
         ];
 
         foreach ($metaMap as $key => $value) {
