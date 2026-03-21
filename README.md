@@ -106,3 +106,11 @@ make package
 - при отсутствии активного lock плагин очищает зависшие события `crs_sync_manual_event`, чтобы избежать ложного `Manual sync is already queued`.
 - для media sync добавлена опция `Local media copy` (same hosting/account) с fallback на HTTP.
 - нормализация source-host для media lookup применяется только при включённом `Local media copy`; при выключенной галке HTTP-путь работает как раньше.
+- dependency diagnostics расширен:
+  - проверка отсутствующих плагинов для контента VideoPack и `Заказ/Оплата в 1 клик`;
+  - исключения из контроля: `WooCommerce PayKeeper Plugin`, `WooCommerce - 1C (МойСклад, СБИС) - Data Exchange`;
+  - email-оповещение администратору при обнаружении missing dependency (с cooldown).
+- добавлен self-heal для product gallery media:
+  - если у attachment отсутствует original файл, CRS пытается восстановить корректный `_wp_attached_file` (например без суффикса `-7`);
+  - синхронизирует `wp_attachment_metadata[file]` с фактическим путём файла;
+  - drift-check учитывает физическое наличие original file, чтобы автоматически чинить 404 в lightbox на следующих sync.

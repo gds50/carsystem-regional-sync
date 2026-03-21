@@ -253,6 +253,17 @@ final class Media_Sync_Service
         $existingAttachmentId = is_array($existing) ? (int) ($existing['local_attachment_id'] ?? 0) : 0;
 
         if ($existingAttachmentId > 0 && get_post_type($existingAttachmentId) === 'attachment') {
+            if (! $this->ensure_attachment_file_available($existingAttachmentId, $remoteUrl)) {
+                $this->mediaMapRepository->upsert([
+                    'object_type'           => $objectType,
+                    'object_remote_id'      => $objectRemoteId,
+                    'remote_media_url'      => $remoteUrl,
+                    'local_attachment_id'   => 0,
+                    'remote_media_hash'     => $this->build_remote_media_hash($remoteUrl),
+                    'last_operation_status' => 'error',
+                    'last_error_message'    => 'Mapped attachment file is missing. Re-sync is required.',
+                ]);
+            } else {
             $this->normalize_attachment_title($existingAttachmentId, $remoteUrl);
             $this->mediaMapRepository->upsert([
                 'object_type'           => $objectType,
@@ -265,6 +276,7 @@ final class Media_Sync_Service
             ]);
 
             return $existingAttachmentId;
+            }
         }
 
         $this->load_media_dependencies();
@@ -374,6 +386,127 @@ final class Media_Sync_Service
         ]);
 
         return $localAttachmentId;
+    }
+
+    private function ensure_attachment_file_available(int $attachmentId, string $remoteUrl): bool
+    {
+        if ($attachmentId <= 0 || get_post_type($attachmentId) !== 'attachment') {
+            return false;
+        }
+
+        if ($this->attachment_original_file_exists($attachmentId)) {
+            $this->sync_attachment_metadata_file_path($attachmentId);
+            return true;
+        }
+
+        if (! $this->try_repair_attachment_file_path($attachmentId, $remoteUrl)) {
+            return false;
+        }
+
+        if (! $this->attachment_original_file_exists($attachmentId)) {
+            return false;
+        }
+
+        $this->sync_attachment_metadata_file_path($attachmentId);
+
+        return true;
+    }
+
+    private function attachment_original_file_exists(int $attachmentId): bool
+    {
+        $relative = (string) get_post_meta($attachmentId, '_wp_attached_file', true);
+
+        if ($relative === '') {
+            return false;
+        }
+
+        $uploadDir = wp_upload_dir();
+        $baseDir = (string) ($uploadDir['basedir'] ?? '');
+
+        if ($baseDir === '') {
+            return false;
+        }
+
+        $absolute = trailingslashit($baseDir) . ltrim($relative, "/\\");
+
+        return is_file($absolute);
+    }
+
+    private function try_repair_attachment_file_path(int $attachmentId, string $remoteUrl): bool
+    {
+        $relative = (string) get_post_meta($attachmentId, '_wp_attached_file', true);
+
+        if ($relative === '') {
+            return false;
+        }
+
+        $uploadDir = wp_upload_dir();
+        $baseDir = (string) ($uploadDir['basedir'] ?? '');
+
+        if ($baseDir === '') {
+            return false;
+        }
+
+        $normalizedRelative = ltrim($relative, "/\\");
+        $dirName = (string) dirname($normalizedRelative);
+        $fileName = (string) basename($normalizedRelative);
+        $candidateNames = [];
+
+        if ($fileName !== '' && preg_match('/^(.*)-\d+(\.[^.]+)$/', $fileName, $matches)) {
+            $candidateNames[] = (string) $matches[1] . (string) $matches[2];
+        }
+
+        $remoteBaseName = sanitize_file_name((string) basename((string) parse_url($remoteUrl, PHP_URL_PATH)));
+        if ($remoteBaseName !== '' && $remoteBaseName !== $fileName) {
+            $candidateNames[] = $remoteBaseName;
+        }
+
+        $candidateNames = array_values(array_unique(array_filter($candidateNames, static function ($value): bool {
+            return is_string($value) && $value !== '';
+        })));
+
+        foreach ($candidateNames as $candidateName) {
+            $candidateRelative = ($dirName !== '' && $dirName !== '.') ? $dirName . '/' . $candidateName : $candidateName;
+            $candidateAbsolute = trailingslashit($baseDir) . ltrim($candidateRelative, "/\\");
+
+            if (! is_file($candidateAbsolute)) {
+                continue;
+            }
+
+            update_post_meta($attachmentId, '_wp_attached_file', $candidateRelative);
+            $this->sync_attachment_metadata_file_path($attachmentId);
+            return true;
+        }
+
+        return false;
+    }
+
+    private function sync_attachment_metadata_file_path(int $attachmentId): void
+    {
+        if ($attachmentId <= 0) {
+            return;
+        }
+
+        $attachedFile = (string) get_post_meta($attachmentId, '_wp_attached_file', true);
+        if ($attachedFile === '') {
+            return;
+        }
+
+        $metadata = wp_get_attachment_metadata($attachmentId);
+        if (! is_array($metadata)) {
+            return;
+        }
+
+        $metadataFile = isset($metadata['file']) && is_string($metadata['file'])
+            ? $metadata['file']
+            : '';
+
+        if ($metadataFile === $attachedFile) {
+            return;
+        }
+
+        $metadata['file'] = $attachedFile;
+        wp_update_attachment_metadata($attachmentId, $metadata);
     }
 
     private function assert_upload_storage_writable(): string

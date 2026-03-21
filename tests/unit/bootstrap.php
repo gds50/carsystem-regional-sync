@@ -74,6 +74,13 @@ if (! function_exists('wp_parse_args')) {
     }
 }
 
+if (! function_exists('wp_json_encode')) {
+    function wp_json_encode($value)
+    {
+        return json_encode($value);
+    }
+}
+
 if (! function_exists('wp_parse_url')) {
     function wp_parse_url($url)
     {

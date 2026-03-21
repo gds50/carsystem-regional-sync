@@ -201,3 +201,8 @@
 - в `system cron` режиме (`DISABLE_WP_CRON=true`) ручной запуск помечается как `scheduled` и выполняется на следующем scheduler tick (без агрессивного UI autopoll);
 - при неактивном lock ручная очередь очищается от зависших `crs_sync_manual_event`, чтобы не оставалось ложного состояния `already queued`.
 - host normalization для media lookup ограничена только `Local media copy` режимом; если опция выключена, обычный HTTP sync не модифицируется.
+- dependency diagnostics расширен на маркеры `Заказ/Оплата в 1 клик` с алертом `Install and activate ...`; исключения из контроля: `WooCommerce PayKeeper Plugin`, `WooCommerce - 1C (МойСклад, СБИС) - Data Exchange`.
+- для product gallery добавлен self-heal attachment:
+  - при битом `_wp_attached_file` выполняется попытка repair (fallback к canonical имени файла без порядкового суффикса);
+  - после repair синхронизируется `wp_attachment_metadata[file]`;
+  - media drift-check учитывает физическое наличие original attachment file, чтобы автоматически чинить 404 full-image ссылок на следующих run.

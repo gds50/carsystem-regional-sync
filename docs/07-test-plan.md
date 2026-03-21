@@ -159,5 +159,15 @@
 
 - если в product/category/page есть video-маркеры VideoPack, а плагин не установлен/не активен, в лог run попадает сообщение:
   - `Missing plugin dependency. Install and activate: VideoPack (...)`;
+- если в product content/meta присутствуют маркеры `Заказ/Оплата в 1 клик`, а `art-woocommerce-order-one-click` отсутствует, run получает dependency warning и статус не выше `partial`;
+- при dependency warning отправляется email администратору (с защитой от частого повторного спама);
+- плагины `WooCommerce PayKeeper Plugin` и `WooCommerce - 1C (МойСклад, СБИС) - Data Exchange` не участвуют в dependency-контроле и не должны вызывать алерты.
 - при наличии VideoPack этот тип ошибок не создаётся;
 - missing dependency на одном объекте не прерывает обработку остальных объектов.
+
+## 13. Gallery self-heal tests
+
+- если `_wp_attached_file` у gallery attachment указывает на несуществующий original (при наличии canonical файла в uploads), sync восстанавливает корректный путь;
+- после восстановления `_wp_attached_file` значение `wp_attachment_metadata[file]` приводится к тому же пути;
+- после sync full-image URL в WooCommerce gallery перестают отдавать `404` для восстановленных attachment;
+- если original отсутствует и repair невозможен, объект помечается как media error и подлежит повторной попытке на следующих run.

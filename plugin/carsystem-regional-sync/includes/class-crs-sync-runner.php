@@ -36,6 +36,7 @@ final class Sync_Runner
     private Sync_Map_Repository $mapRepository;
     private Media_Map_Repository $mediaMapRepository;
     private Media_Sync_Service $mediaSyncService;
+    private Menu_Sync_Service $menuSyncService;
     private Dependency_Check_Service $dependencyCheckService;
     /** @var float|null */
     private $runDeadline;
@@ -60,6 +61,7 @@ final class Sync_Runner
         ?Sync_Map_Repository $mapRepository = null,
         ?Media_Map_Repository $mediaMapRepository = null,
         ?Media_Sync_Service $mediaSyncService = null,
+        ?Menu_Sync_Service $menuSyncService = null,
         ?Dependency_Check_Service $dependencyCheckService = null
     ) {
         $this->client = $client;
@@ -69,6 +71,7 @@ final class Sync_Runner
         $this->mapRepository = $mapRepository ?? new Sync_Map_Repository();
         $this->mediaMapRepository = $mediaMapRepository ?? new Media_Map_Repository();
         $this->mediaSyncService = $mediaSyncService ?? new Media_Sync_Service();
+        $this->menuSyncService = $menuSyncService ?? new Menu_Sync_Service();
         $this->dependencyCheckService = $dependencyCheckService ?? new Dependency_Check_Service();
     }
 
@@ -146,7 +149,9 @@ final class Sync_Runner
             $categorySummary = $this->run_categories_sync($settings, $logId);
             $productSummary = $this->run_products_sync($settings, $logId);
             $pageSummary = $this->run_pages_sync($settings, $logId);
-            $summary = $this->merge_sync_summaries($categorySummary, $productSummary, $pageSummary);
+            $menuSummary = $this->run_top_menu_sync($settings);
+            $summary = $this->merge_sync_summaries($categorySummary, $productSummary, $pageSummary, $menuSummary);
+            $this->notify_missing_dependencies_if_needed($summary, $runType, $logId);
 
             $this->logger->finish($logId, $summary);
         } catch (\Throwable $e) {
@@ -275,7 +280,7 @@ final class Sync_Runner
         return true;
     }
 
-    private function merge_sync_summaries(array $categorySummary, array $productSummary, array $pageSummary): array
+    private function merge_sync_summaries(array $categorySummary, array $productSummary, array $pageSummary, array $menuSummary = []): array
     {
         $status = 'success';
 
@@ -283,12 +288,14 @@ final class Sync_Runner
             (string) ($categorySummary['status'] ?? 'success') === 'error'
             || (string) ($productSummary['status'] ?? 'success') === 'error'
             || (string) ($pageSummary['status'] ?? 'success') === 'error'
+            || (string) ($menuSummary['status'] ?? 'success') === 'error'
         ) {
             $status = 'error';
         } elseif (
             (string) ($categorySummary['status'] ?? 'success') === 'partial'
             || (string) ($productSummary['status'] ?? 'success') === 'partial'
             || (string) ($pageSummary['status'] ?? 'success') === 'partial'
+            || (string) ($menuSummary['status'] ?? 'success') === 'partial'
         ) {
             $status = 'partial';
         }
@@ -296,7 +303,8 @@ final class Sync_Runner
         $dependencyWarnings = array_merge(
             (array) ($categorySummary['dependency_warnings'] ?? []),
             (array) ($productSummary['dependency_warnings'] ?? []),
-            (array) ($pageSummary['dependency_warnings'] ?? [])
+            (array) ($pageSummary['dependency_warnings'] ?? []),
+            (array) ($menuSummary['dependency_warnings'] ?? [])
         );
         $dependencyWarnings = array_values(array_unique(array_filter($dependencyWarnings, static function ($value): bool {
             return is_string($value) && $value !== '';
@@ -307,18 +315,23 @@ final class Sync_Runner
         }
 
         $message = 'Categories, products and pages sync completed.';
+        if ($menuSummary !== []) {
+            $message .= ' Top menu sync completed.';
+        }
         $message = $this->append_dependency_warnings_to_message($message, $dependencyWarnings);
 
         $context = [];
         $dependencyIssues = array_merge(
             (array) ($categorySummary['dependency_issues'] ?? []),
             (array) ($productSummary['dependency_issues'] ?? []),
-            (array) ($pageSummary['dependency_issues'] ?? [])
+            (array) ($pageSummary['dependency_issues'] ?? []),
+            (array) ($menuSummary['dependency_issues'] ?? [])
         );
         $objectErrors = array_merge(
             (array) ($categorySummary['object_errors'] ?? []),
             (array) ($productSummary['object_errors'] ?? []),
-            (array) ($pageSummary['object_errors'] ?? [])
+            (array) ($pageSummary['object_errors'] ?? []),
+            (array) ($menuSummary['object_errors'] ?? [])
         );
 
         if ($dependencyWarnings !== []) {
@@ -333,11 +346,11 @@ final class Sync_Runner
 
         $result = [
             'status'        => $status,
-            'checked_count' => (int) ($categorySummary['checked_count'] ?? 0) + (int) ($productSummary['checked_count'] ?? 0) + (int) ($pageSummary['checked_count'] ?? 0),
-            'updated_count' => (int) ($categorySummary['updated_count'] ?? 0) + (int) ($productSummary['updated_count'] ?? 0) + (int) ($pageSummary['updated_count'] ?? 0),
-            'created_count' => (int) ($categorySummary['created_count'] ?? 0) + (int) ($productSummary['created_count'] ?? 0) + (int) ($pageSummary['created_count'] ?? 0),
-            'skipped_count' => (int) ($categorySummary['skipped_count'] ?? 0) + (int) ($productSummary['skipped_count'] ?? 0) + (int) ($pageSummary['skipped_count'] ?? 0),
-            'error_count'   => (int) ($categorySummary['error_count'] ?? 0) + (int) ($productSummary['error_count'] ?? 0) + (int) ($pageSummary['error_count'] ?? 0),
+            'checked_count' => (int) ($categorySummary['checked_count'] ?? 0) + (int) ($productSummary['checked_count'] ?? 0) + (int) ($pageSummary['checked_count'] ?? 0) + (int) ($menuSummary['checked_count'] ?? 0),
+            'updated_count' => (int) ($categorySummary['updated_count'] ?? 0) + (int) ($productSummary['updated_count'] ?? 0) + (int) ($pageSummary['updated_count'] ?? 0) + (int) ($menuSummary['updated_count'] ?? 0),
+            'created_count' => (int) ($categorySummary['created_count'] ?? 0) + (int) ($productSummary['created_count'] ?? 0) + (int) ($pageSummary['created_count'] ?? 0) + (int) ($menuSummary['created_count'] ?? 0),
+            'skipped_count' => (int) ($categorySummary['skipped_count'] ?? 0) + (int) ($productSummary['skipped_count'] ?? 0) + (int) ($pageSummary['skipped_count'] ?? 0) + (int) ($menuSummary['skipped_count'] ?? 0),
+            'error_count'   => (int) ($categorySummary['error_count'] ?? 0) + (int) ($productSummary['error_count'] ?? 0) + (int) ($pageSummary['error_count'] ?? 0) + (int) ($menuSummary['error_count'] ?? 0),
             'message'       => $message,
         ];
 
@@ -691,6 +704,48 @@ final class Sync_Runner
         $summary['dependency_warnings'] = $dependencyWarnings;
         $summary['dependency_issues'] = $dependencyIssues;
         $this->flush_run_progress('pages complete', true);
+
+        return $summary;
+    }
+
+    private function run_top_menu_sync(array $settings): array
+    {
+        $summary = [
+            'status'        => 'success',
+            'checked_count' => 0,
+            'updated_count' => 0,
+            'created_count' => 0,
+            'skipped_count' => 0,
+            'error_count'   => 0,
+            'message'       => '',
+            'dependency_issues' => [],
+            'object_errors' => [],
+        ];
+
+        $this->increment_summary_counter($summary, 'checked_count');
+
+        try {
+            $updated = $this->menuSyncService->sync_top_menu($settings);
+
+            if ($updated) {
+                $this->increment_summary_counter($summary, 'updated_count');
+                $summary['message'] = 'Top menu synced.';
+            } else {
+                $this->increment_summary_counter($summary, 'skipped_count');
+                $summary['message'] = 'Top menu is up to date.';
+            }
+        } catch (\Throwable $e) {
+            $summary['status'] = 'partial';
+            $this->increment_summary_counter($summary, 'error_count');
+            $summary['message'] = 'Top menu sync failed: ' . $this->sanitize_error_message($e->getMessage());
+            $this->append_object_issue($summary['object_errors'], [
+                'object_type' => 'menu',
+                'remote_id'   => 0,
+                'remote_slug' => 'top',
+                'message'     => $this->sanitize_error_message($e->getMessage()),
+            ]);
+        }
+        $this->flush_run_progress('top menu complete', true);
 
         return $summary;
     }
@@ -1632,7 +1687,7 @@ final class Sync_Runner
         if ($remoteImageUrls !== []) {
             $thumbnailId = (int) get_post_thumbnail_id((int) $localPost->ID);
 
-            if ($thumbnailId <= 0 || get_post_type($thumbnailId) !== 'attachment') {
+            if ($thumbnailId <= 0 || ! $this->attachment_original_file_exists($thumbnailId)) {
                 return true;
             }
 
@@ -1640,11 +1695,17 @@ final class Sync_Runner
             $rawGallery = trim((string) get_post_meta((int) $localPost->ID, '_product_image_gallery', true));
             $galleryIds = $rawGallery === '' ? [] : array_map('intval', explode(',', $rawGallery));
             $galleryIds = array_values(array_filter($galleryIds, static function (int $id): bool {
-                return $id > 0 && get_post_type($id) === 'attachment';
+                return $id > 0;
             }));
 
             if (count($galleryIds) < $expectedGalleryCount) {
                 return true;
+            }
+
+            foreach ($galleryIds as $galleryId) {
+                if (! $this->attachment_original_file_exists((int) $galleryId)) {
+                    return true;
+                }
             }
         }
 
@@ -1687,6 +1748,29 @@ final class Sync_Runner
         }
 
         return array_values(array_unique($urls));
+    }
+
+    private function attachment_original_file_exists(int $attachmentId): bool
+    {
+        if ($attachmentId <= 0 || get_post_type($attachmentId) !== 'attachment') {
+            return false;
+        }
+
+        $relative = (string) get_post_meta($attachmentId, '_wp_attached_file', true);
+        if ($relative === '') {
+            return false;
+        }
+
+        $uploadDir = wp_upload_dir();
+        $baseDir = (string) ($uploadDir['basedir'] ?? '');
+
+        if ($baseDir === '') {
+            return false;
+        }
+
+        $absolute = trailingslashit($baseDir) . ltrim($relative, "/\\");
+
+        return is_file($absolute);
     }
 
     private function extract_media_urls_from_product_content(array $remoteProduct): array
@@ -2579,6 +2663,37 @@ final class Sync_Runner
         }
 
         return trim($baseMessage . ' ' . $suffix);
+    }
+
+    private function notify_missing_dependencies_if_needed(array $summary, string $runType, int $logId): void
+    {
+        $contextJson = isset($summary['context_json']) && is_string($summary['context_json'])
+            ? $summary['context_json']
+            : '';
+
+        if ($contextJson === '') {
+            return;
+        }
+
+        $decoded = json_decode($contextJson, true);
+        if (! is_array($decoded)) {
+            return;
+        }
+
+        $dependencyIssues = isset($decoded['dependency_issues']) && is_array($decoded['dependency_issues'])
+            ? $decoded['dependency_issues']
+            : [];
+
+        if ($dependencyIssues === []) {
+            return;
+        }
+
+        $missingDependencies = $this->dependencyCheckService->collect_missing_from_issues($dependencyIssues);
+        if ($missingDependencies === []) {
+            return;
+        }
+
+        $this->dependencyCheckService->maybe_send_alert($missingDependencies, $runType, $logId);
     }
 
     private function mark_category_sync_error(array $remoteCategory, string $message): void
