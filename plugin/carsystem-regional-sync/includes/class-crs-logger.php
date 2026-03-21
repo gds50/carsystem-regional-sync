@@ -10,7 +10,10 @@ final class Logger
 {
     public function start(string $runType): int
     {
-        return (new Sync_Log_Repository())->insert([
+        $repository = new Sync_Log_Repository();
+        $repository->maybe_cleanup_old_logs();
+
+        return $repository->insert([
             'run_type'        => $runType,
             'started_at'      => current_time('mysql', true),
             'finished_at'     => null,

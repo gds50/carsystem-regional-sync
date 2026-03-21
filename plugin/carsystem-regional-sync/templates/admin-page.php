@@ -251,8 +251,16 @@ if (! isset($tabs[$activeTab])) {
             }
             $manualEventTs = wp_next_scheduled(CRS_SYNC_MANUAL_CRON_HOOK);
             $manualEventUtc = $manualEventTs !== false ? gmdate('Y-m-d H:i:s', (int) $manualEventTs) : '';
+            $manualQueueOverdueSeconds = null;
+            $manualQueueIsOverdue = false;
+            if ($manualEventTs !== false) {
+                $manualQueueOverdueSeconds = max(0, time() - (int) $manualEventTs);
+                $manualQueueIsOverdue = $manualQueueOverdueSeconds > 600;
+            }
+            $lastCronSuccessStartedAt = (string) ($latestCronSuccess['started_at'] ?? '');
+            $lastCronSuccessFinishedAt = (string) ($latestCronSuccess['finished_at'] ?? '');
             $schedulerCommand = sprintf(
-                'cd %s && wp --allow-root cron event run --due-now',
+                'cd %s && /usr/local/bin/wp --allow-root cron event run --due-now',
                 rtrim((string) ABSPATH, '/')
             );
             $syncQueuedState = isset($_GET['sync_queued']) ? sanitize_key((string) $_GET['sync_queued']) : '';
@@ -308,6 +316,13 @@ if (! isset($tabs[$activeTab])) {
                 </div>
             <?php endif; ?>
 
+            <?php if ($manualQueueIsOverdue && ! $lockActive) : ?>
+                <div class="notice notice-warning" style="margin: 0 0 16px 0;">
+                    <p><strong><?php echo esc_html__('Manual queue is overdue and lock is idle. System cron likely did not run WP-CLI command.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><?php echo esc_html(sprintf('Queued at (UTC): %s | Overdue: %ds', $manualEventUtc, (int) $manualQueueOverdueSeconds)); ?></p>
+                </div>
+            <?php endif; ?>
+
             <?php if ($syncPollState === 'pending' || $syncPollState === 'running') : ?>
                 <div id="crs-sync-autopoll-notice" class="notice notice-info" style="margin: 0 0 16px 0;">
                     <p id="crs-sync-autopoll-text">
@@ -332,6 +347,17 @@ if (! isset($tabs[$activeTab])) {
                     |
                     <strong><?php echo esc_html__('Next scheduled run (UTC):', 'carsystem-regional-sync'); ?></strong>
                     <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('not scheduled', 'carsystem-regional-sync')); ?>
+                </p>
+                <p>
+                    <strong><?php echo esc_html__('Last successful cron run (UTC):', 'carsystem-regional-sync'); ?></strong>
+                    <?php if ($lastCronSuccessStartedAt !== '') : ?>
+                        <?php echo esc_html($lastCronSuccessStartedAt); ?>
+                        <?php if ($lastCronSuccessFinishedAt !== '') : ?>
+                            <?php echo esc_html(sprintf(' -> %s', $lastCronSuccessFinishedAt)); ?>
+                        <?php endif; ?>
+                    <?php else : ?>
+                        <?php echo esc_html__('not found yet', 'carsystem-regional-sync'); ?>
+                    <?php endif; ?>
                 </p>
             </div>
 

@@ -32,7 +32,12 @@ final class Admin_Page
         Security::assert_admin_access();
         $connectionTest = get_option('crs_sync_last_connection_test', []);
         $primaryRegionalization = get_option(Primary_Regionalization_Runner::RESULT_OPTION_KEY, []);
-        $logs = (new Sync_Log_Repository())->latest(20);
+        $logRepository = new Sync_Log_Repository();
+        $logs = $logRepository->latest(20);
+        $latestCronSuccessRows = $logRepository->latest_by_run_type('cron', 1, 'success');
+        $latestCronSuccess = is_array($latestCronSuccessRows) && isset($latestCronSuccessRows[0]) && is_array($latestCronSuccessRows[0])
+            ? $latestCronSuccessRows[0]
+            : [];
 
         if (! is_array($connectionTest)) {
             $connectionTest = [];
