@@ -32,6 +32,7 @@ final class Loader
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-logger.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-api-client.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-media-sync-service.php';
+        require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-menu-sync-service.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-dependency-check-service.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-lock.php';
         require_once CRS_SYNC_PLUGIN_DIR . '/includes/class-crs-cron-scheduler.php';
