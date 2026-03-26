@@ -18,6 +18,12 @@ function crs_run_settings_dictionary_tests(CRS_Unit_Test_Runner $runner): void
     );
 
     $runner->assertSame(
+        [5677, 991, 123],
+        Settings::sanitize_excluded_product_remote_ids("post=5677\nhttps://carsystem.su/wp-admin/post.php?post=991&action=edit\n123\nfoo"),
+        'sanitize_excluded_product_remote_ids parses post=ID, URL and plain numeric values'
+    );
+
+    $runner->assertSame(
         '02:30',
         Settings::sanitize_time('99:99'),
         'sanitize_time falls back to default for invalid values'
@@ -32,6 +38,7 @@ function crs_run_settings_dictionary_tests(CRS_Unit_Test_Runner $runner): void
     $sanitized = Settings::sanitize([
         'use_local_media_copy' => '1',
         'source_local_base_path' => " /home/g/gds50/carsystem.su/public_html/ \n",
+        'excluded_product_remote_ids' => "post=5677\n5677\n?post=991",
     ]);
 
     $runner->assertSame(
@@ -44,6 +51,12 @@ function crs_run_settings_dictionary_tests(CRS_Unit_Test_Runner $runner): void
         '/home/g/gds50/carsystem.su/public_html',
         (string) ($sanitized['source_local_base_path'] ?? ''),
         'sanitize trims and normalizes source local base path'
+    );
+
+    $runner->assertSame(
+        [5677, 991],
+        array_map('intval', (array) ($sanitized['excluded_product_remote_ids'] ?? [])),
+        'sanitize keeps unique excluded remote product IDs'
     );
 
     $pairs = Dictionary::parse("москва => тюмень\nмоск => омск");

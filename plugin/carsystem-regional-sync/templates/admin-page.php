@@ -187,12 +187,45 @@ if (! isset($tabs[$activeTab])) {
             <?php
             $exclusionSettings = \CRS\Settings::get();
             $excludedSlugs = (array) ($exclusionSettings['excluded_slugs'] ?? []);
+            $excludedProductRemoteIds = array_map('intval', (array) ($exclusionSettings['excluded_product_remote_ids'] ?? []));
             $excludedText = implode("\n", array_map(static function ($slug) {
                 return (string) $slug;
             }, $excludedSlugs));
+            $excludedProductsText = implode("\n", array_map(static function ($remoteId) {
+                return sprintf('post=%d', (int) $remoteId);
+            }, $excludedProductRemoteIds));
+            $excludedProductLabels = [];
+            $mapRepository = new \CRS\Sync_Map_Repository();
+            foreach ($excludedProductRemoteIds as $remoteId) {
+                $remoteId = (int) $remoteId;
+                if ($remoteId <= 0) {
+                    continue;
+                }
+
+                $label = sprintf('post=%d', $remoteId);
+                $mapping = $mapRepository->find_by_remote('product', $remoteId);
+                $localPostId = is_array($mapping) ? (int) ($mapping['local_id'] ?? 0) : 0;
+
+                if ($localPostId > 0) {
+                    $localPost = get_post($localPostId);
+                    if ($localPost instanceof \WP_Post) {
+                        $title = sanitize_text_field((string) get_the_title($localPost));
+                        if ($title === '') {
+                            $title = '(no title)';
+                        }
+                        $label .= sprintf(' - %s (local ID: %d)', $title, $localPost->ID);
+                    } else {
+                        $label .= sprintf(' - local ID %d not found', $localPostId);
+                    }
+                } else {
+                    $label .= ' - not synced locally yet';
+                }
+
+                $excludedProductLabels[] = $label;
+            }
             ?>
             <?php settings_errors('crs_sync_settings_group'); ?>
-            <h2><?php echo esc_html__('Excluded slugs', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Exclusions', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
                 <?php settings_fields('crs_sync_settings_group'); ?>
                 <table class="form-table" role="presentation">
@@ -201,6 +234,21 @@ if (! isset($tabs[$activeTab])) {
                         <td>
                             <textarea id="crs-excluded-slugs" class="large-text code" name="crs_sync_settings[excluded_slugs]" rows="10"><?php echo esc_textarea($excludedText); ?></textarea>
                             <p class="description"><?php echo esc_html__('Excluded slugs are skipped in sync and primary regionalization.', 'carsystem-regional-sync'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="crs-excluded-product-remote-ids"><?php echo esc_html__('Excluded products (remote IDs)', 'carsystem-regional-sync'); ?></label></th>
+                        <td>
+                            <textarea id="crs-excluded-product-remote-ids" class="large-text code" name="crs_sync_settings[excluded_product_remote_ids]" rows="8"><?php echo esc_textarea($excludedProductsText); ?></textarea>
+                            <p class="description"><?php echo esc_html__('One item per line. Supported formats: post=5677, https://.../?post=5677, or plain ID 5677. Excluded products are skipped in product sync updates.', 'carsystem-regional-sync'); ?></p>
+                            <?php if ($excludedProductLabels !== []) : ?>
+                                <p style="margin: 8px 0 4px 0;"><strong><?php echo esc_html__('Resolved product labels:', 'carsystem-regional-sync'); ?></strong></p>
+                                <ul style="margin: 0; padding-left: 18px;">
+                                    <?php foreach ($excludedProductLabels as $productLabel) : ?>
+                                        <li><code><?php echo esc_html($productLabel); ?></code></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 </table>
@@ -407,6 +455,9 @@ if (! isset($tabs[$activeTab])) {
                 <input type="hidden" name="crs_sync_settings[source_local_base_path]" value="<?php echo esc_attr((string) ($syncSettings['source_local_base_path'] ?? '')); ?>">
                 <?php foreach ((array) ($syncSettings['excluded_slugs'] ?? []) as $excludedSlug) : ?>
                     <input type="hidden" name="crs_sync_settings[excluded_slugs][]" value="<?php echo esc_attr((string) $excludedSlug); ?>">
+                <?php endforeach; ?>
+                <?php foreach ((array) ($syncSettings['excluded_product_remote_ids'] ?? []) as $excludedProductRemoteId) : ?>
+                    <input type="hidden" name="crs_sync_settings[excluded_product_remote_ids][]" value="<?php echo esc_attr((string) (int) $excludedProductRemoteId); ?>">
                 <?php endforeach; ?>
 
                 <table class="form-table" role="presentation">

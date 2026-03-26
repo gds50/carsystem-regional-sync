@@ -585,7 +585,7 @@ final class Sync_Runner
             $page++;
         }
 
-        $productUnpublished = (int) $this->apply_product_unpublish_logic($seenRemoteIds);
+        $productUnpublished = (int) $this->apply_product_unpublish_logic($seenRemoteIds, $settings);
         if ($productUnpublished > 0) {
             $this->increment_summary_counter($summary, 'updated_count', $productUnpublished);
         }
@@ -876,6 +876,10 @@ final class Sync_Runner
 
         $seenRemoteIds[] = $remoteId;
         $seenRemoteIds = array_values(array_unique($seenRemoteIds));
+
+        if ($this->is_excluded_product_remote_id($remoteId, $settings)) {
+            return 'skipped';
+        }
 
         if ($this->regionalizer->is_excluded_slug($slug, $settings)) {
             return 'skipped';
@@ -2306,7 +2310,7 @@ final class Sync_Runner
         return $unpublishedCount;
     }
 
-    private function apply_product_unpublish_logic(array $seenRemoteIds): int
+    private function apply_product_unpublish_logic(array $seenRemoteIds, array $settings): int
     {
         $unpublishedCount = 0;
         $mappings = $this->mapRepository->list_by_object_type(self::PRODUCT_OBJECT_TYPE);
@@ -2315,7 +2319,7 @@ final class Sync_Runner
         foreach ($mappings as $mapping) {
             $remoteId = (int) ($mapping['remote_id'] ?? 0);
 
-            if ($remoteId <= 0 || isset($seenMap[$remoteId])) {
+            if ($remoteId <= 0 || isset($seenMap[$remoteId]) || $this->is_excluded_product_remote_id($remoteId, $settings)) {
                 continue;
             }
 
@@ -2348,6 +2352,17 @@ final class Sync_Runner
         }
 
         return $unpublishedCount;
+    }
+
+    private function is_excluded_product_remote_id(int $remoteId, array $settings): bool
+    {
+        if ($remoteId <= 0) {
+            return false;
+        }
+
+        $excludedRemoteIds = array_map('intval', (array) ($settings['excluded_product_remote_ids'] ?? []));
+
+        return in_array($remoteId, $excludedRemoteIds, true);
     }
 
     private function apply_page_unpublish_logic(array $seenRemoteIds): int

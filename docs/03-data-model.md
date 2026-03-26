@@ -24,6 +24,10 @@
         'polzovatelskoe-soglashenie',
         'oplata',
     ],
+    'excluded_product_remote_ids' => [
+        5677,
+        991,
+    ],
     'use_local_media_copy' => false,
     'source_local_base_path' => '',
     'auto_sync_enabled' => true,

@@ -48,6 +48,8 @@
 - slug из defaults пропускается
 - вручную добавленный slug пропускается
 - удалённый из списка default slug снова участвует в sync
+- product remote ID (`post=5677`) из exclusions пропускается в product sync (create/update/unpublish не выполняются)
+- поддерживаются форматы ввода: `post=ID`, URL с `post=ID`, plain `ID`
 
 ## 5. Primary regionalization tests
 
