@@ -15,17 +15,23 @@ final class Cron_Scheduler
             return;
         }
 
-        $time = (string) ($settings['sync_time'] ?? Settings::defaults()['sync_time']);
-        $nextTimestamp = Settings::next_run_timestamp($time);
+        $time = Settings::sanitize_time((string) ($settings['sync_time'] ?? Settings::defaults()['sync_time']));
         $currentTimestamp = wp_next_scheduled(CRS_SYNC_CRON_HOOK);
 
         if ($currentTimestamp === false) {
+            $nextTimestamp = Settings::next_run_timestamp($time);
             wp_schedule_event($nextTimestamp, 'daily', CRS_SYNC_CRON_HOOK);
             return;
         }
 
-        if ((int) $currentTimestamp !== (int) $nextTimestamp) {
-            wp_unschedule_event((int) $currentTimestamp, CRS_SYNC_CRON_HOOK);
+        // Compare the configured clock time instead of full timestamp.
+        // This prevents skipping overdue daily events in system-cron mode:
+        // due events must be executed by wp cron event run --due-now, not re-scheduled to tomorrow.
+        $currentTime = wp_date('H:i', (int) $currentTimestamp, wp_timezone());
+
+        if ($currentTime !== $time) {
+            $nextTimestamp = Settings::next_run_timestamp($time);
+            $this->unschedule();
             wp_schedule_event($nextTimestamp, 'daily', CRS_SYNC_CRON_HOOK);
         }
     }
