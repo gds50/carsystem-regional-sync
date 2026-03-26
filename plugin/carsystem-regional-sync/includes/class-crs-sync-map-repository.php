@@ -33,6 +33,25 @@ final class Sync_Map_Repository
         return is_array($row) ? $row : null;
     }
 
+    public function find_by_local(string $objectType, int $localId): ?array
+    {
+        global $wpdb;
+
+        if (! $this->table_exists()) {
+            return null;
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$this->table()} WHERE object_type = %s AND local_id = %d LIMIT 1",
+            $objectType,
+            $localId
+        );
+
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        return is_array($row) ? $row : null;
+    }
+
     public function upsert(array $data): void
     {
         global $wpdb;

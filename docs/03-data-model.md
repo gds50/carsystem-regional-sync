@@ -28,12 +28,23 @@
         5677,
         991,
     ],
+    'excluded_product_local_ids' => [
+        5654,
+        5677,
+    ],
     'use_local_media_copy' => false,
     'source_local_base_path' => '',
     'auto_sync_enabled' => true,
     'sync_time' => '02:30',
 ]
 ```
+
+Примечание по исключениям товаров:
+- в UI администратор вводит локальный `post` ID (например `post=5654`);
+- плагин сохраняет обе проекции:
+  - `excluded_product_local_ids` — локальные ID для жёсткого skip любых изменений конкретного локального товара;
+  - `excluded_product_remote_ids` — соответствующие remote ID для skip sync-операций по remote payload;
+- пока товар находится в этих списках, sync не должен менять его статус/контент/мета (включая publish/draft переключения).
 
 ## 2. Table: `wp_crs_sync_map`
 

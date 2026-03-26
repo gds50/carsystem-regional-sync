@@ -1038,6 +1038,10 @@ final class Sync_Runner
         $localPost = $this->resolve_local_product($mapping, $slug);
         $localPostId = $localPost instanceof \WP_Post ? (int) $localPost->ID : 0;
 
+        if ($this->is_excluded_product_local_id($localPostId, $settings)) {
+            return 'skipped';
+        }
+
         $preparedDescription = $this->prepare_product_description((string) ($remoteProduct['description'] ?? ''), $settings);
         $preparedShortDescription = $this->prepare_product_short_description((string) ($remoteProduct['short_description'] ?? ''), $settings);
 
@@ -2319,11 +2323,16 @@ final class Sync_Runner
         foreach ($mappings as $mapping) {
             $remoteId = (int) ($mapping['remote_id'] ?? 0);
 
-            if ($remoteId <= 0 || isset($seenMap[$remoteId]) || $this->is_excluded_product_remote_id($remoteId, $settings)) {
+            $localId = (int) ($mapping['local_id'] ?? 0);
+
+            if (
+                $remoteId <= 0
+                || isset($seenMap[$remoteId])
+                || $this->is_excluded_product_remote_id($remoteId, $settings)
+                || $this->is_excluded_product_local_id($localId, $settings)
+            ) {
                 continue;
             }
-
-            $localId = (int) ($mapping['local_id'] ?? 0);
             $alreadyUnpublished = (string) ($mapping['last_operation_status'] ?? '') === 'unpublished'
                 && ($localId <= 0 || $this->is_local_post_marked_unpublished($localId, self::PRODUCT_POST_TYPE));
 
@@ -2363,6 +2372,17 @@ final class Sync_Runner
         $excludedRemoteIds = array_map('intval', (array) ($settings['excluded_product_remote_ids'] ?? []));
 
         return in_array($remoteId, $excludedRemoteIds, true);
+    }
+
+    private function is_excluded_product_local_id(int $localId, array $settings): bool
+    {
+        if ($localId <= 0) {
+            return false;
+        }
+
+        $excludedLocalIds = array_map('intval', (array) ($settings['excluded_product_local_ids'] ?? []));
+
+        return in_array($localId, $excludedLocalIds, true);
     }
 
     private function apply_page_unpublish_logic(array $seenRemoteIds): int

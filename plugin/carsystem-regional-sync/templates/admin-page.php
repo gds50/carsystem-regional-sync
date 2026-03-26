@@ -3,12 +3,12 @@
  * Milestone 3 admin shell.
  */
 $tabs = [
-    'connection' => __('Connection', 'carsystem-regional-sync'),
-    'region'     => __('Region', 'carsystem-regional-sync'),
-    'partner'    => __('Partner', 'carsystem-regional-sync'),
-    'exclusions' => __('Exclusions', 'carsystem-regional-sync'),
-    'sync'       => __('Sync', 'carsystem-regional-sync'),
-    'logs'       => __('Logs', 'carsystem-regional-sync'),
+    'connection' => __('Подключение', 'carsystem-regional-sync'),
+    'region'     => __('Регион', 'carsystem-regional-sync'),
+    'partner'    => __('Партнер', 'carsystem-regional-sync'),
+    'exclusions' => __('Исключения', 'carsystem-regional-sync'),
+    'sync'       => __('Синхронизация', 'carsystem-regional-sync'),
+    'logs'       => __('Логи', 'carsystem-regional-sync'),
 ];
 
 $activeTab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'connection';
@@ -18,7 +18,7 @@ if (! isset($tabs[$activeTab])) {
 }
 ?>
 <div class="wrap">
-    <h1><?php echo esc_html__('Carsystem Regional Sync', 'carsystem-regional-sync'); ?></h1>
+    <h1><?php echo esc_html__('Региональная синхронизация Carsystem', 'carsystem-regional-sync'); ?></h1>
 
     <h2 class="nav-tab-wrapper">
         <?php foreach ($tabs as $tabKey => $tabLabel) : ?>
@@ -57,64 +57,64 @@ if (! isset($tabs[$activeTab])) {
                 <div class="<?php echo esc_attr($noticeClass); ?>" style="margin: 0 0 16px 0;">
                     <p><strong><?php echo esc_html($testMessage); ?></strong></p>
                     <?php if ($testedAt !== '') : ?>
-                        <p><?php echo esc_html(sprintf('Tested at (UTC): %s', $testedAt)); ?></p>
+                        <p><?php echo esc_html(sprintf('Проверено (UTC): %s', $testedAt)); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
 
             <?php settings_errors('crs_sync_settings_group'); ?>
 
-            <h2><?php echo esc_html__('Connection settings', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Настройки подключения', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>" style="margin-bottom: 16px;">
                 <?php settings_fields('crs_sync_settings_group'); ?>
 
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><label for="crs-source-url"><?php echo esc_html__('Source URL', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-source-url"><?php echo esc_html__('Адрес источника (URL)', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <input id="crs-source-url" type="url" class="regular-text" name="crs_sync_settings[source_url]" value="<?php echo esc_attr($sourceUrl); ?>" required>
-                            <p class="description"><?php echo esc_html__('Main site URL, e.g. https://carsystem.su', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('URL основного сайта, например https://carsystem.su', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-api-username"><?php echo esc_html__('API username', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-api-username"><?php echo esc_html__('Логин API', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <input id="crs-api-username" type="text" class="regular-text" name="crs_sync_settings[api_username]" value="<?php echo esc_attr($apiUsername); ?>" autocomplete="off" required>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-api-password"><?php echo esc_html__('Application password', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-api-password"><?php echo esc_html__('Пароль приложения', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <input id="crs-api-password" type="password" class="regular-text" name="crs_sync_settings[api_application_password]" value="<?php echo esc_attr($hasPassword ? '********' : ''); ?>" autocomplete="new-password">
-                            <p class="description"><?php echo esc_html__('Leave as ******** to keep current password. Enter a new value to replace it.', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Оставьте ********, чтобы сохранить текущий пароль. Введите новый, чтобы заменить.', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><?php echo esc_html__('Local media copy mode', 'carsystem-regional-sync'); ?></th>
+                        <th scope="row"><?php echo esc_html__('Режим локального копирования медиа', 'carsystem-regional-sync'); ?></th>
                         <td>
                             <label>
                                 <input type="checkbox" name="crs_sync_settings[use_local_media_copy]" value="1" <?php checked($useLocalMediaCopy); ?>>
-                                <?php echo esc_html__('Use local filesystem copy first (same hosting account), then fallback to HTTP.', 'carsystem-regional-sync'); ?>
+                                <?php echo esc_html__('Сначала копировать через локальную файловую систему (тот же хостинг-аккаунт), затем fallback на HTTP.', 'carsystem-regional-sync'); ?>
                             </label>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-source-local-base-path"><?php echo esc_html__('Source local base path (optional)', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-source-local-base-path"><?php echo esc_html__('Локальный базовый путь источника (опционально)', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <input id="crs-source-local-base-path" type="text" class="regular-text code" name="crs_sync_settings[source_local_base_path]" value="<?php echo esc_attr($sourceLocalBasePath); ?>" placeholder="/home/g/.../carsystem.su/public_html">
-                            <p class="description"><?php echo esc_html__('If empty, plugin tries to infer source path from current ABSPATH and Source URL host.', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Если поле пустое, плагин попробует определить путь по текущему ABSPATH и хосту Source URL.', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                 </table>
 
-                <?php submit_button(__('Save connection settings', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Сохранить настройки подключения', 'carsystem-regional-sync')); ?>
             </form>
 
-            <p><?php echo esc_html__('Use this action to verify access to the remote WordPress REST API.', 'carsystem-regional-sync'); ?></p>
+            <p><?php echo esc_html__('Используйте это действие, чтобы проверить доступ к удаленному WordPress REST API.', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="crs_test_connection">
                 <?php wp_nonce_field('crs_test_connection'); ?>
-                <?php submit_button(__('Test connection', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Проверить подключение', 'carsystem-regional-sync')); ?>
             </form>
         <?php elseif ($activeTab === 'region') : ?>
             <?php
@@ -125,31 +125,31 @@ if (! isset($tabs[$activeTab])) {
             $dictionaryValue = (string) ($regionSettings['replacement_dictionary'] ?? '');
             ?>
             <?php settings_errors('crs_sync_settings_group'); ?>
-            <h2><?php echo esc_html__('Region settings', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Настройки региона', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
                 <?php settings_fields('crs_sync_settings_group'); ?>
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><label for="crs-region"><?php echo esc_html__('Region', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-region"><?php echo esc_html__('Регион', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-region" type="text" class="regular-text" name="crs_sync_settings[region]" value="<?php echo esc_attr($regionValue); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-city"><?php echo esc_html__('City', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-city"><?php echo esc_html__('Город', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-city" type="text" class="regular-text" name="crs_sync_settings[city]" value="<?php echo esc_attr($cityValue); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-area"><?php echo esc_html__('Area', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-area"><?php echo esc_html__('Область', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-area" type="text" class="regular-text" name="crs_sync_settings[area]" value="<?php echo esc_attr($areaValue); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-dictionary"><?php echo esc_html__('Replacement dictionary', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-dictionary"><?php echo esc_html__('Словарь замен', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <textarea id="crs-dictionary" class="large-text code" name="crs_sync_settings[replacement_dictionary]" rows="10"><?php echo esc_textarea($dictionaryValue); ?></textarea>
-                            <p class="description"><?php echo esc_html__('One rule per line: from => to', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Одно правило на строку: что_заменить => на_что_заменить', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                 </table>
-                <?php submit_button(__('Save region settings', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Сохранить настройки региона', 'carsystem-regional-sync')); ?>
             </form>
         <?php elseif ($activeTab === 'partner') : ?>
             <?php
@@ -160,89 +160,114 @@ if (! isset($tabs[$activeTab])) {
             $partnerAddress = (string) ($partnerSettings['partner_address'] ?? '');
             ?>
             <?php settings_errors('crs_sync_settings_group'); ?>
-            <h2><?php echo esc_html__('Partner settings', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Настройки партнера', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
                 <?php settings_fields('crs_sync_settings_group'); ?>
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><label for="crs-partner-name"><?php echo esc_html__('Partner name', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-partner-name"><?php echo esc_html__('Название партнера', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-partner-name" type="text" class="regular-text" name="crs_sync_settings[partner_name]" value="<?php echo esc_attr($partnerName); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-partner-phone"><?php echo esc_html__('Partner phone', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-partner-phone"><?php echo esc_html__('Телефон партнера', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-partner-phone" type="text" class="regular-text" name="crs_sync_settings[partner_phone]" value="<?php echo esc_attr($partnerPhone); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-partner-email"><?php echo esc_html__('Partner email', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-partner-email"><?php echo esc_html__('Эл. почта партнера', 'carsystem-regional-sync'); ?></label></th>
                         <td><input id="crs-partner-email" type="email" class="regular-text" name="crs_sync_settings[partner_email]" value="<?php echo esc_attr($partnerEmail); ?>"></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-partner-address"><?php echo esc_html__('Partner address', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-partner-address"><?php echo esc_html__('Адрес партнера', 'carsystem-regional-sync'); ?></label></th>
                         <td><textarea id="crs-partner-address" class="large-text" name="crs_sync_settings[partner_address]" rows="4"><?php echo esc_textarea($partnerAddress); ?></textarea></td>
                     </tr>
                 </table>
-                <?php submit_button(__('Save partner settings', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Сохранить настройки партнера', 'carsystem-regional-sync')); ?>
             </form>
         <?php elseif ($activeTab === 'exclusions') : ?>
             <?php
             $exclusionSettings = \CRS\Settings::get();
             $excludedSlugs = (array) ($exclusionSettings['excluded_slugs'] ?? []);
+            $excludedProductLocalIds = array_map('intval', (array) ($exclusionSettings['excluded_product_local_ids'] ?? []));
             $excludedProductRemoteIds = array_map('intval', (array) ($exclusionSettings['excluded_product_remote_ids'] ?? []));
             $excludedText = implode("\n", array_map(static function ($slug) {
                 return (string) $slug;
             }, $excludedSlugs));
-            $excludedProductsText = implode("\n", array_map(static function ($remoteId) {
-                return sprintf('post=%d', (int) $remoteId);
-            }, $excludedProductRemoteIds));
             $excludedProductLabels = [];
             $mapRepository = new \CRS\Sync_Map_Repository();
-            foreach ($excludedProductRemoteIds as $remoteId) {
-                $remoteId = (int) $remoteId;
-                if ($remoteId <= 0) {
+            $excludedProductsLines = [];
+            $displayItems = $excludedProductLocalIds;
+            if ($displayItems === []) {
+                foreach ($excludedProductRemoteIds as $remoteId) {
+                    $remoteId = (int) $remoteId;
+                    if ($remoteId <= 0) {
+                        continue;
+                    }
+
+                    $mappingByRemote = $mapRepository->find_by_remote('product', $remoteId);
+                    $localFromMap = is_array($mappingByRemote) ? (int) ($mappingByRemote['local_id'] ?? 0) : 0;
+                    $displayItems[] = $localFromMap > 0 ? $localFromMap : $remoteId;
+                }
+            }
+
+            foreach ($displayItems as $displayPostId) {
+                $displayPostId = (int) $displayPostId;
+                if ($displayPostId <= 0) {
                     continue;
                 }
 
-                $label = sprintf('post=%d', $remoteId);
-                $mapping = $mapRepository->find_by_remote('product', $remoteId);
-                $localPostId = is_array($mapping) ? (int) ($mapping['local_id'] ?? 0) : 0;
+                $mappingByLocal = $mapRepository->find_by_local('product', $displayPostId);
+                $remoteId = is_array($mappingByLocal) ? (int) ($mappingByLocal['remote_id'] ?? 0) : 0;
+
+                if ($remoteId <= 0) {
+                    $remoteId = $displayPostId;
+                    $mappingByRemote = $mapRepository->find_by_remote('product', $remoteId);
+                    if (is_array($mappingByRemote)) {
+                        $displayPostId = (int) ($mappingByRemote['local_id'] ?? $displayPostId);
+                    }
+                }
+
+                $excludedProductsLines[] = sprintf('post=%d', $displayPostId);
+                $label = sprintf('post=%d -> remote=%d', $displayPostId, $remoteId);
+                $localPostId = $displayPostId;
 
                 if ($localPostId > 0) {
                     $localPost = get_post($localPostId);
                     if ($localPost instanceof \WP_Post) {
                         $title = sanitize_text_field((string) get_the_title($localPost));
                         if ($title === '') {
-                            $title = '(no title)';
+                            $title = '(без названия)';
                         }
-                        $label .= sprintf(' - %s (local ID: %d)', $title, $localPost->ID);
+                        $label .= sprintf(' - %s (локальный ID: %d)', $title, $localPost->ID);
                     } else {
-                        $label .= sprintf(' - local ID %d not found', $localPostId);
+                        $label .= sprintf(' - локальный ID %d не найден', $localPostId);
                     }
                 } else {
-                    $label .= ' - not synced locally yet';
+                    $label .= ' - пока не синхронизирован локально';
                 }
 
                 $excludedProductLabels[] = $label;
             }
+            $excludedProductsText = implode("\n", $excludedProductsLines);
             ?>
             <?php settings_errors('crs_sync_settings_group'); ?>
-            <h2><?php echo esc_html__('Exclusions', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Исключения', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>">
                 <?php settings_fields('crs_sync_settings_group'); ?>
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><label for="crs-excluded-slugs"><?php echo esc_html__('Slugs (one per line)', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-excluded-slugs"><?php echo esc_html__('Адрес страницы (по одному в строке)', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <textarea id="crs-excluded-slugs" class="large-text code" name="crs_sync_settings[excluded_slugs]" rows="10"><?php echo esc_textarea($excludedText); ?></textarea>
-                            <p class="description"><?php echo esc_html__('Excluded slugs are skipped in sync and primary regionalization.', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Исключенные slug пропускаются в синхронизации и первичной регионализации.', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-excluded-product-remote-ids"><?php echo esc_html__('Excluded products (remote IDs)', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-excluded-product-remote-ids"><?php echo esc_html__('Исключенные товары', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <textarea id="crs-excluded-product-remote-ids" class="large-text code" name="crs_sync_settings[excluded_product_remote_ids]" rows="8"><?php echo esc_textarea($excludedProductsText); ?></textarea>
-                            <p class="description"><?php echo esc_html__('One item per line. Supported formats: post=5677, https://.../?post=5677, or plain ID 5677. Excluded products are skipped in product sync updates.', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Один элемент на строку. Можно указывать ID из URL товара в админке: post=5677 (или просто 5677). Плагин сам сопоставит локальный ID с remote ID и исключит товар из обновления.', 'carsystem-regional-sync'); ?></p>
                             <?php if ($excludedProductLabels !== []) : ?>
-                                <p style="margin: 8px 0 4px 0;"><strong><?php echo esc_html__('Resolved product labels:', 'carsystem-regional-sync'); ?></strong></p>
+                                <p style="margin: 8px 0 4px 0;"><strong><?php echo esc_html__('Распознанные товары:', 'carsystem-regional-sync'); ?></strong></p>
                                 <ul style="margin: 0; padding-left: 18px;">
                                     <?php foreach ($excludedProductLabels as $productLabel) : ?>
                                         <li><code><?php echo esc_html($productLabel); ?></code></li>
@@ -252,7 +277,7 @@ if (! isset($tabs[$activeTab])) {
                         </td>
                     </tr>
                 </table>
-                <?php submit_button(__('Save exclusions', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Сохранить исключения', 'carsystem-regional-sync')); ?>
             </form>
         <?php elseif ($activeTab === 'sync') : ?>
             <?php
@@ -284,7 +309,7 @@ if (! isset($tabs[$activeTab])) {
             $nextRunTimestamp = (new \CRS\Cron_Scheduler())->next_run_timestamp();
             $nextRunUtc = $nextRunTimestamp !== null ? gmdate('Y-m-d H:i:s', $nextRunTimestamp) : '';
             $isSystemCronMode = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
-            $cronModeLabel = $isSystemCronMode ? 'system cron' : 'traffic-triggered WP-Cron';
+            $cronModeLabel = $isSystemCronMode ? 'системный cron' : 'WP-Cron (по трафику)';
             $lockState = get_option(CRS_SYNC_LOCK_KEY, []);
             $lockActive = (new \CRS\Lock())->is_active();
             $lockRunType = '';
@@ -335,8 +360,8 @@ if (! isset($tabs[$activeTab])) {
 
             if ($latestPrimaryId > 0 || $latestSyncId > 0) {
                 $lastActionLabel = $latestSyncId >= $latestPrimaryId
-                    ? __('Full sync (Run sync now)', 'carsystem-regional-sync')
-                    : __('Primary regionalization', 'carsystem-regional-sync');
+                    ? __('Полная синхронизация (Запустить сейчас)', 'carsystem-regional-sync')
+                    : __('Первичная регионализация', 'carsystem-regional-sync');
             }
             ?>
 
@@ -344,30 +369,30 @@ if (! isset($tabs[$activeTab])) {
 
             <?php if ($syncQueuedState === '1') : ?>
                 <div class="notice notice-success" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Sync queued in background. Page response is immediate to avoid gateway timeout.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Синхронизация поставлена в фоновую очередь. Страница отвечает сразу, чтобы избежать таймаута шлюза.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php elseif ($syncQueuedState === 'already') : ?>
                 <div class="notice notice-warning" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Manual sync is already queued. Wait for it to start/finish and refresh status.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Ручная синхронизация уже в очереди. Дождитесь старта/завершения и обновите статус.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php elseif ($syncQueuedState === 'active') : ?>
                 <div class="notice notice-info" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Sync is already running. New run was not queued to avoid lock skip loops.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Синхронизация уже выполняется. Новый запуск не поставлен в очередь, чтобы избежать циклов пропуска из-за lock.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php elseif ($syncQueuedState === 'scheduled') : ?>
                 <div class="notice notice-info" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Sync queued for system cron. It will start on the next scheduler tick.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Синхронизация поставлена в очередь system cron. Запуск будет на следующем тике планировщика.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php elseif ($syncQueuedState === 'error') : ?>
                 <div class="notice notice-error" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Failed to queue background sync. Check cron configuration and logs.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Не удалось поставить фоновую синхронизацию в очередь. Проверьте cron-конфигурацию и логи.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php endif; ?>
 
             <?php if ($manualQueueIsOverdue && ! $lockActive) : ?>
                 <div class="notice notice-warning" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Manual queue is overdue and lock is idle. System cron likely did not run WP-CLI command.', 'carsystem-regional-sync'); ?></strong></p>
-                    <p><?php echo esc_html(sprintf('Queued at (UTC): %s | Overdue: %ds', $manualEventUtc, (int) $manualQueueOverdueSeconds)); ?></p>
+                    <p><strong><?php echo esc_html__('Ручная очередь просрочена и lock неактивен. Скорее всего system cron не выполнил WP-CLI команду.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><?php echo esc_html(sprintf('Поставлено в очередь (UTC): %s | Просрочка: %dс', $manualEventUtc, (int) $manualQueueOverdueSeconds)); ?></p>
                 </div>
             <?php endif; ?>
 
@@ -375,69 +400,69 @@ if (! isset($tabs[$activeTab])) {
                 <div id="crs-sync-autopoll-notice" class="notice notice-info" style="margin: 0 0 16px 0;">
                     <p id="crs-sync-autopoll-text">
                         <strong><?php echo esc_html($syncPollState === 'pending'
-                                ? 'Sync is queued. Waiting for start...'
-                                : 'Sync is running. Waiting for completion...'); ?></strong>
+                                ? 'Синхронизация в очереди. Ожидание старта...'
+                                : 'Синхронизация выполняется. Ожидание завершения...'); ?></strong>
                     </p>
                 </div>
             <?php elseif ($syncPollState === 'done') : ?>
                 <div class="notice notice-success" style="margin: 0 0 16px 0;">
-                    <p><strong><?php echo esc_html__('Sync completed. Full sync status was refreshed automatically.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Синхронизация завершена. Статус полной синхронизации обновлен автоматически.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php endif; ?>
 
             <div class="notice notice-info" style="margin: 0 0 16px 0;">
                 <p>
-                    <strong><?php echo esc_html__('Auto sync:', 'carsystem-regional-sync'); ?></strong>
-                    <?php echo esc_html($autoSyncEnabled ? 'enabled' : 'disabled'); ?>
+                    <strong><?php echo esc_html__('Автосинхронизация:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($autoSyncEnabled ? 'включена' : 'выключена'); ?>
                     |
-                    <strong><?php echo esc_html__('Sync time:', 'carsystem-regional-sync'); ?></strong>
+                    <strong><?php echo esc_html__('Время синхронизации:', 'carsystem-regional-sync'); ?></strong>
                     <?php echo esc_html($syncTime); ?>
                     |
-                    <strong><?php echo esc_html__('Next scheduled run (UTC):', 'carsystem-regional-sync'); ?></strong>
-                    <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('not scheduled', 'carsystem-regional-sync')); ?>
+                    <strong><?php echo esc_html__('Следующий запуск по расписанию (UTC):', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($nextRunUtc !== '' ? $nextRunUtc : __('не запланирован', 'carsystem-regional-sync')); ?>
                 </p>
                 <p>
-                    <strong><?php echo esc_html__('Last successful cron run (UTC):', 'carsystem-regional-sync'); ?></strong>
+                    <strong><?php echo esc_html__('Последний успешный cron-запуск (UTC):', 'carsystem-regional-sync'); ?></strong>
                     <?php if ($lastCronSuccessStartedAt !== '') : ?>
                         <?php echo esc_html($lastCronSuccessStartedAt); ?>
                         <?php if ($lastCronSuccessFinishedAt !== '') : ?>
                             <?php echo esc_html(sprintf(' -> %s', $lastCronSuccessFinishedAt)); ?>
                         <?php endif; ?>
                     <?php else : ?>
-                        <?php echo esc_html__('not found yet', 'carsystem-regional-sync'); ?>
+                        <?php echo esc_html__('пока нет данных', 'carsystem-regional-sync'); ?>
                     <?php endif; ?>
                 </p>
             </div>
 
             <div class="notice notice-info" style="margin: 0 0 16px 0;">
                 <p>
-                    <strong><?php echo esc_html__('Cron mode:', 'carsystem-regional-sync'); ?></strong>
+                    <strong><?php echo esc_html__('Режим cron:', 'carsystem-regional-sync'); ?></strong>
                     <?php echo esc_html($cronModeLabel); ?>
                     |
-                    <strong><?php echo esc_html__('Lock:', 'carsystem-regional-sync'); ?></strong>
-                    <?php echo esc_html($lockActive ? 'active' : 'idle'); ?>
+                    <strong><?php echo esc_html__('Блокировка:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($lockActive ? 'активен' : 'свободен'); ?>
                     <?php if ($lockRunType !== '') : ?>
                         <?php echo esc_html(sprintf('(%s)', $lockRunType)); ?>
                     <?php endif; ?>
                     <?php if (is_int($lockAgeSeconds)) : ?>
-                        <?php echo esc_html(sprintf('| age: %ds', $lockAgeSeconds)); ?>
+                        <?php echo esc_html(sprintf('| возраст: %dс', $lockAgeSeconds)); ?>
                     <?php endif; ?>
                     |
-                    <strong><?php echo esc_html__('Manual queue:', 'carsystem-regional-sync'); ?></strong>
-                    <?php echo esc_html($manualEventUtc !== '' ? 'queued @ ' . $manualEventUtc . ' UTC' : 'empty'); ?>
+                    <strong><?php echo esc_html__('Ручная очередь:', 'carsystem-regional-sync'); ?></strong>
+                    <?php echo esc_html($manualEventUtc !== '' ? 'в очереди с ' . $manualEventUtc . ' UTC' : 'пусто'); ?>
                 </p>
                 <?php if (! $isSystemCronMode) : ?>
                     <p style="margin-top: 6px;">
-                        <?php echo esc_html__('For Beget system scheduler use command:', 'carsystem-regional-sync'); ?>
+                        <?php echo esc_html__('Для системного планировщика Beget используйте команду:', 'carsystem-regional-sync'); ?>
                         <code><?php echo esc_html($schedulerCommand); ?></code>
                     </p>
                     <p style="margin-top: 4px;">
-                        <?php echo esc_html__('Then set DISABLE_WP_CRON=true in wp-config.php after scheduler is active.', 'carsystem-regional-sync'); ?>
+                        <?php echo esc_html__('После активации планировщика установите DISABLE_WP_CRON=true в wp-config.php.', 'carsystem-regional-sync'); ?>
                     </p>
                 <?php endif; ?>
             </div>
 
-            <h2><?php echo esc_html__('Schedule settings', 'carsystem-regional-sync'); ?></h2>
+            <h2><?php echo esc_html__('Настройки расписания', 'carsystem-regional-sync'); ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('options.php')); ?>" style="margin-bottom: 16px;">
                 <?php settings_fields('crs_sync_settings_group'); ?>
                 <input type="hidden" name="crs_sync_settings[source_url]" value="<?php echo esc_attr((string) ($syncSettings['source_url'] ?? '')); ?>">
@@ -459,45 +484,48 @@ if (! isset($tabs[$activeTab])) {
                 <?php foreach ((array) ($syncSettings['excluded_product_remote_ids'] ?? []) as $excludedProductRemoteId) : ?>
                     <input type="hidden" name="crs_sync_settings[excluded_product_remote_ids][]" value="<?php echo esc_attr((string) (int) $excludedProductRemoteId); ?>">
                 <?php endforeach; ?>
+                <?php foreach ((array) ($syncSettings['excluded_product_local_ids'] ?? []) as $excludedProductLocalId) : ?>
+                    <input type="hidden" name="crs_sync_settings[excluded_product_local_ids][]" value="<?php echo esc_attr((string) (int) $excludedProductLocalId); ?>">
+                <?php endforeach; ?>
 
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><?php echo esc_html__('Enable auto sync', 'carsystem-regional-sync'); ?></th>
+                        <th scope="row"><?php echo esc_html__('Включить автосинхронизацию', 'carsystem-regional-sync'); ?></th>
                         <td>
                             <label>
                                 <input type="checkbox" name="crs_sync_settings[auto_sync_enabled]" value="1" <?php checked($autoSyncEnabled); ?>>
-                                <?php echo esc_html__('Run daily scheduled sync', 'carsystem-regional-sync'); ?>
+                                <?php echo esc_html__('Запускать ежедневную синхронизацию по расписанию', 'carsystem-regional-sync'); ?>
                             </label>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="crs-sync-time"><?php echo esc_html__('Sync time', 'carsystem-regional-sync'); ?></label></th>
+                        <th scope="row"><label for="crs-sync-time"><?php echo esc_html__('Время синхронизации', 'carsystem-regional-sync'); ?></label></th>
                         <td>
                             <input id="crs-sync-time" type="time" name="crs_sync_settings[sync_time]" value="<?php echo esc_attr($syncTime); ?>" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                            <p class="description"><?php echo esc_html__('Time is interpreted in site timezone. Next run is shown in UTC above.', 'carsystem-regional-sync'); ?></p>
+                            <p class="description"><?php echo esc_html__('Время интерпретируется в часовом поясе сайта. Следующий запуск выше показан в UTC.', 'carsystem-regional-sync'); ?></p>
                         </td>
                     </tr>
                 </table>
 
-                <?php submit_button(__('Save schedule', 'carsystem-regional-sync')); ?>
+                <?php submit_button(__('Сохранить расписание', 'carsystem-regional-sync')); ?>
             </form>
 
-            <p><?php echo esc_html__('Run full sync now (categories, products, pages).', 'carsystem-regional-sync'); ?></p>
+            <p><?php echo esc_html__('Запустить полную синхронизацию сейчас (категории, товары, страницы).', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="crs_run_sync_now">
                 <?php wp_nonce_field('crs_run_sync_now'); ?>
-                <?php submit_button(__('Run sync now', 'carsystem-regional-sync'), 'primary'); ?>
+                <?php submit_button(__('Запустить синхронизацию', 'carsystem-regional-sync'), 'primary'); ?>
             </form>
 
-            <p><?php echo esc_html__('Run primary regionalization for local products and categories.', 'carsystem-regional-sync'); ?></p>
+            <p><?php echo esc_html__('Запустить первичную регионализацию для локальных товаров и категорий.', 'carsystem-regional-sync'); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="crs_run_primary_regionalization">
                 <?php wp_nonce_field('crs_run_primary_regionalization'); ?>
-                <?php submit_button(__('Primary regionalization', 'carsystem-regional-sync'), 'secondary'); ?>
+                <?php submit_button(__('Первичная регионализация', 'carsystem-regional-sync'), 'secondary'); ?>
             </form>
 
             <?php if ($lastActionLabel !== '') : ?>
-                <p style="margin-top: 16px;"><strong><?php echo esc_html(sprintf('Latest action: %s', $lastActionLabel)); ?></strong></p>
+                <p style="margin-top: 16px;"><strong><?php echo esc_html(sprintf('Последнее действие: %s', $lastActionLabel)); ?></strong></p>
             <?php endif; ?>
 
             <?php if (is_array($latestFullSyncLog)) : ?>
@@ -514,13 +542,13 @@ if (! isset($tabs[$activeTab])) {
                 $syncNoticeClass = $syncStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
                 ?>
                 <div class="<?php echo esc_attr($syncNoticeClass); ?>" style="margin: 16px 0 0 0;">
-                    <p><strong><?php echo esc_html(sprintf('Full sync status: %s', $syncStatus)); ?></strong></p>
+                    <p><strong><?php echo esc_html(sprintf('Статус полной синхронизации: %s', $syncStatus)); ?></strong></p>
                     <?php if ($syncMessage !== '') : ?>
                         <p><?php echo esc_html($syncMessage); ?></p>
                     <?php endif; ?>
-                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Created: %d | Skipped: %d | Errors: %d', $syncChecked, $syncUpdated, $syncCreated, $syncSkipped, $syncErrors)); ?></p>
+                    <p><?php echo esc_html(sprintf('Проверено: %d | Обновлено: %d | Создано: %d | Пропущено: %d | Ошибок: %d', $syncChecked, $syncUpdated, $syncCreated, $syncSkipped, $syncErrors)); ?></p>
                     <?php if ($syncStarted !== '' || $syncFinished !== '') : ?>
-                        <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $syncStarted, $syncFinished)); ?></p>
+                        <p><?php echo esc_html(sprintf('Старт (UTC): %s | Финиш (UTC): %s', $syncStarted, $syncFinished)); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -540,13 +568,13 @@ if (! isset($tabs[$activeTab])) {
                 $runNoticeClass = $runStatus === 'success' ? 'notice notice-success' : 'notice notice-warning';
                 ?>
                 <div class="<?php echo esc_attr($runNoticeClass); ?>" style="margin: 16px 0 0 0;">
-                    <p><strong><?php echo esc_html(sprintf('Primary regionalization status: %s', $runStatus)); ?></strong></p>
+                    <p><strong><?php echo esc_html(sprintf('Статус первичной регионализации: %s', $runStatus)); ?></strong></p>
                     <?php if ($runMessage !== '') : ?>
                         <p><?php echo esc_html($runMessage); ?></p>
                     <?php endif; ?>
-                    <p><?php echo esc_html(sprintf('Checked: %d | Updated: %d | Created: %d | Skipped: %d | Errors: %d', $runChecked, $runUpdated, $runCreated, $runSkipped, $runErrors)); ?></p>
+                    <p><?php echo esc_html(sprintf('Проверено: %d | Обновлено: %d | Создано: %d | Пропущено: %d | Ошибок: %d', $runChecked, $runUpdated, $runCreated, $runSkipped, $runErrors)); ?></p>
                     <?php if ($runStarted !== '' || $runFinished !== '') : ?>
-                        <p><?php echo esc_html(sprintf('Started (UTC): %s | Finished (UTC): %s', $runStarted, $runFinished)); ?></p>
+                        <p><?php echo esc_html(sprintf('Старт (UTC): %s | Финиш (UTC): %s', $runStarted, $runFinished)); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -566,7 +594,7 @@ if (! isset($tabs[$activeTab])) {
                     (function() {
                         var textNode = document.getElementById('crs-sync-autopoll-text');
                         if (textNode) {
-                            textNode.textContent = 'Auto-check in progress... attempt <?php echo (int) ($syncPollTry + 1); ?> of 40.';
+                            textNode.textContent = 'Автопроверка выполняется... попытка <?php echo (int) ($syncPollTry + 1); ?> из 40.';
                         }
                         window.setTimeout(function() {
                             window.location.href = <?php echo wp_json_encode($nextPollUrl); ?>;
@@ -575,27 +603,27 @@ if (! isset($tabs[$activeTab])) {
                 </script>
             <?php elseif (($syncPollState === 'pending' || $syncPollState === 'running') && $syncPollTry >= 40) : ?>
                 <div class="notice notice-warning" style="margin: 16px 0 0 0;">
-                    <p><strong><?php echo esc_html__('Auto-check timeout reached. Please refresh manually.', 'carsystem-regional-sync'); ?></strong></p>
+                    <p><strong><?php echo esc_html__('Достигнут таймаут автопроверки. Обновите страницу вручную.', 'carsystem-regional-sync'); ?></strong></p>
                 </div>
             <?php endif; ?>
         <?php elseif ($activeTab === 'logs') : ?>
             <?php if ($logs === []) : ?>
-                <p><?php echo esc_html__('No logs yet.', 'carsystem-regional-sync'); ?></p>
+                <p><?php echo esc_html__('Логов пока нет.', 'carsystem-regional-sync'); ?></p>
             <?php else : ?>
                 <table class="widefat striped">
                     <thead>
                         <tr>
                             <th><?php echo esc_html__('ID', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Run type', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Status', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Started (UTC)', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Finished (UTC)', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Checked', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Updated', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Created', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Skipped', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Errors', 'carsystem-regional-sync'); ?></th>
-                            <th><?php echo esc_html__('Message', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Тип запуска', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Статус', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Старт (UTC)', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Финиш (UTC)', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Проверено', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Обновлено', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Создано', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Пропущено', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Ошибки', 'carsystem-regional-sync'); ?></th>
+                            <th><?php echo esc_html__('Сообщение', 'carsystem-regional-sync'); ?></th>
                         </tr>
                     </thead>
                     <tbody>

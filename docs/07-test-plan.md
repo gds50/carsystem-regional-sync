@@ -50,6 +50,8 @@
 - удалённый из списка default slug снова участвует в sync
 - product remote ID (`post=5677`) из exclusions пропускается в product sync (create/update/unpublish не выполняются)
 - поддерживаются форматы ввода: `post=ID`, URL с `post=ID`, plain `ID`
+- при вводе локального `post=ID` плагин сопоставляет локальный товар с `remote_id` и сохраняет обе проекции (`excluded_product_local_ids` + `excluded_product_remote_ids`)
+- исключённый товар полностью замораживается: любые ручные изменения (включая перевод в `draft`) не откатываются sync-ом, пока товар не удалён из exclusions
 
 ## 5. Primary regionalization tests
 

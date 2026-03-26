@@ -17,8 +17,8 @@ final class Admin_Page
         }
 
         add_menu_page(
-            __('Carsystem Sync', 'carsystem-regional-sync'),
-            __('Carsystem Sync', 'carsystem-regional-sync'),
+            __('Синхронизация Carsystem', 'carsystem-regional-sync'),
+            __('Синхронизация Carsystem', 'carsystem-regional-sync'),
             'manage_options',
             self::MENU_SLUG,
             [$this, 'render'],

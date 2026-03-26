@@ -8,6 +8,8 @@ if (! defined('ABSPATH')) {
 
 final class Settings
 {
+    private const PRODUCT_OBJECT_TYPE = 'product';
+
     public static function register(): void
     {
         register_setting(
@@ -43,6 +45,7 @@ final class Settings
                 'oplata',
             ],
             'excluded_product_remote_ids' => [],
+            'excluded_product_local_ids' => [],
             'use_local_media_copy'      => 0,
             'source_local_base_path'    => '',
             'auto_sync_enabled'         => 1,
@@ -77,6 +80,7 @@ final class Settings
             'partner_address'          => sanitize_textarea_field((string) (array_key_exists('partner_address', $input) ? $input['partner_address'] : ($current['partner_address'] ?? ''))),
             'excluded_slugs'           => self::sanitize_excluded_slugs(array_key_exists('excluded_slugs', $input) ? $input['excluded_slugs'] : ($current['excluded_slugs'] ?? [])),
             'excluded_product_remote_ids' => self::sanitize_excluded_product_remote_ids(array_key_exists('excluded_product_remote_ids', $input) ? $input['excluded_product_remote_ids'] : ($current['excluded_product_remote_ids'] ?? [])),
+            'excluded_product_local_ids' => self::sanitize_excluded_product_local_ids(array_key_exists('excluded_product_remote_ids', $input) ? $input['excluded_product_remote_ids'] : (array_key_exists('excluded_product_local_ids', $input) ? $input['excluded_product_local_ids'] : ($current['excluded_product_local_ids'] ?? []))),
             'use_local_media_copy'     => array_key_exists('use_local_media_copy', $input)
                 ? (empty($input['use_local_media_copy']) ? 0 : 1)
                 : (int) ($current['use_local_media_copy'] ?? 0),
@@ -123,6 +127,59 @@ final class Settings
     }
 
     public static function sanitize_excluded_product_remote_ids($raw): array
+    {
+        $items = self::extract_product_ids_from_raw($raw);
+        $result = [];
+        $mapRepository = class_exists('\\CRS\\Sync_Map_Repository') ? new Sync_Map_Repository() : null;
+
+        foreach ($items as $item) {
+            $remoteId = self::resolve_remote_product_id((int) $item, $mapRepository);
+
+            if ($remoteId > 0) {
+                $result[$remoteId] = $remoteId;
+            }
+        }
+
+        return array_values($result);
+    }
+
+    public static function sanitize_excluded_product_local_ids($raw): array
+    {
+        return self::extract_product_ids_from_raw($raw);
+    }
+
+    private static function resolve_remote_product_id(int $id, ?Sync_Map_Repository $mapRepository = null): int
+    {
+        if ($id <= 0) {
+            return 0;
+        }
+
+        if ($mapRepository instanceof Sync_Map_Repository) {
+            $mappingByLocal = $mapRepository->find_by_local(self::PRODUCT_OBJECT_TYPE, $id);
+            if (is_array($mappingByLocal)) {
+                $remoteId = (int) ($mappingByLocal['remote_id'] ?? 0);
+                if ($remoteId > 0) {
+                    return $remoteId;
+                }
+            }
+
+            $mappingByRemote = $mapRepository->find_by_remote(self::PRODUCT_OBJECT_TYPE, $id);
+            if (is_array($mappingByRemote)) {
+                return $id;
+            }
+        }
+
+        if (function_exists('get_post_type') && function_exists('get_post_meta') && get_post_type($id) === 'product') {
+            $metaRemoteId = (int) get_post_meta($id, '_crs_remote_id', true);
+            if ($metaRemoteId > 0) {
+                return $metaRemoteId;
+            }
+        }
+
+        return $id;
+    }
+
+    private static function extract_product_ids_from_raw($raw): array
     {
         $items = is_array($raw) ? $raw : preg_split('/\r\n|\r|\n/', (string) $raw);
         $result = [];
